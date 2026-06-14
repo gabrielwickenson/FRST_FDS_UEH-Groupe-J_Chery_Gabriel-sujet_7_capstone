@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+
+src/main/resources/serviceplatform-f6a98-firebase-adminsdk-fbsvc-3dca842043.json

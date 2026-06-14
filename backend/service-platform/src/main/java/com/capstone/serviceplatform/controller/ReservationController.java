@@ -214,4 +214,27 @@ public class ReservationController {
         litigeRepository.save(litige);
         return ResponseEntity.ok(litige);
     }
+
+    @PostMapping("/{id}/paiement")
+    public ResponseEntity<?> simulerPaiement(@PathVariable Long id,
+                                             @RequestParam String modePaiement,
+                                             @RequestParam Long clientId) {
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Réservation non trouvée"));
+        }
+        // Vérifier que le client est bien celui de la réservation
+        if (!reservation.getClient().getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Non autorisé"));
+        }
+        // Vérifier que la réservation n'est pas déjà payée (si vous avez un champ paiement)
+        // Ici on change simplement le statut
+        reservation.setStatut("PAYEE");
+        reservationRepository.save(reservation);
+
+        // Optionnel : créer un enregistrement dans une table Paiement
+        return ResponseEntity.ok(Map.of("message", "Paiement simulé effectué avec " + modePaiement));
+    }
 }

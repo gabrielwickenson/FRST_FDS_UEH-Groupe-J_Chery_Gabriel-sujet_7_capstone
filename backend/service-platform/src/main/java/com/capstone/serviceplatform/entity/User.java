@@ -22,6 +22,16 @@ public class User {
 
     private String telephone;
     private String photo;
+    private String fcmToken;
+
+    //Getters and Setters (fcmTocken)
+    public String getFcmToken() {
+        return fcmToken;
+    }
+
+    public void setFcmToken(String fcmToken) {
+        this.fcmToken = fcmToken;
+    }
 
     @Temporal(TemporalType.DATE)
     private Date dateInscription;
