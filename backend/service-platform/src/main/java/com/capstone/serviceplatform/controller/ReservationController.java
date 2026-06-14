@@ -1,5 +1,7 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.AvisRequest;
+import com.capstone.serviceplatform.dto.LitigeRequest;
 import com.capstone.serviceplatform.dto.ReservationRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
@@ -9,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +29,10 @@ public class ReservationController {
     private ServiceRepository serviceRepository;
     @Autowired
     private ReservationRepository reservationRepository;
+    @Autowired
+    private AvisRepository avisRepository;
+    @Autowired
+    private LitigeRepository litigeRepository;
 
     @PostMapping
     public ResponseEntity<?> creerReservation(@RequestBody ReservationRequest request) {
@@ -128,5 +135,83 @@ public class ReservationController {
             r.getClient().setMotDePasse(null);
         });
         return ResponseEntity.ok(reservations);
+    }
+
+    @PostMapping("/{id}/avis")
+    public ResponseEntity<?> laisserAvis(@PathVariable Long id,
+                                         @RequestBody AvisRequest avisRequest,
+                                         @RequestParam Long clientId) {
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Réservation non trouvée"));
+        }
+        // Vérifier que le client est bien celui de la réservation
+        if (!reservation.getClient().getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à évaluer cette réservation"));
+        }
+        // Vérifier que la réservation est terminée
+        if (!"TERMINEE".equals(reservation.getStatut())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Seules les prestations terminées peuvent être évaluées"));
+        }
+        // Vérifier si un avis existe déjà (optionnel)
+        // Créer l'avis
+        Avis avis = new Avis();
+        avis.setReservation(reservation);
+        avis.setNote(avisRequest.getNote());
+        avis.setCommentaire(avisRequest.getCommentaire());
+        avis.setDate(new Date());
+        avisRepository.save(avis);
+        // Mettre à jour la moyenne du prestataire
+        Prestataire prestataire = reservation.getPrestataire();
+        List<Avis> avisList = avisRepository.findByReservationPrestataireId(prestataire.getId());
+        double moyenne = avisList.stream().mapToInt(Avis::getNote).average().orElse(0.0);
+        prestataire.setMoyenneNotes(BigDecimal.valueOf(moyenne));
+        prestataireRepository.save(prestataire);
+        return ResponseEntity.status(HttpStatus.CREATED).body(avis);
+    }
+
+    // Ouvrir un litige (client)
+    @PostMapping("/{id}/litige")
+    public ResponseEntity<?> ouvrirLitige(@PathVariable Long id,
+                                          @RequestBody LitigeRequest request,
+                                          @RequestParam Long clientId) {
+        //Vérifie si la réservation existe.
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null)
+            return ResponseEntity.notFound().build();
+        //Vérifie que le client qui ouvre le litige est bien celui associé à la réservation.
+        if (!reservation.getClient().getId().equals(clientId))
+            return ResponseEntity.status(403).body(Map.of("error", "Non autorisé"));
+        //Vérifie si un litige existe déjà pour cette réservation.
+        if (litigeRepository.existsByReservationId(id))
+            return ResponseEntity.status(409).body(Map.of("error", "Litige déjà existant"));
+
+        Litige litige = new Litige();
+        litige.setReservation(reservation);
+        litige.setMotif(request.getMotif());
+        litige.setStatut("OUVERT");
+        litigeRepository.save(litige);
+        return ResponseEntity.status(201).body(litige);
+    }
+
+    // Admin : consulter tous les litiges ouverts
+    @GetMapping("/litiges/ouverts")
+    public ResponseEntity<List<Litige>> getLitigesOuverts() {
+        return ResponseEntity.ok(litigeRepository.findByStatut("OUVERT"));
+    }
+
+    // Admin : résoudre un litige
+    @PutMapping("/litiges/{litigeId}")
+    public ResponseEntity<?> resoudreLitige(@PathVariable Long litigeId,
+                                            @RequestParam String resolution) {
+        Litige litige = litigeRepository.findById(litigeId).orElse(null);
+        if (litige == null) return ResponseEntity.notFound().build();
+        litige.setStatut("RESOLU");
+        litige.setResolution(resolution);
+        litigeRepository.save(litige);
+        return ResponseEntity.ok(litige);
     }
 }
