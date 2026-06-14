@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -80,5 +82,51 @@ public class ReservationController {
         saved.setClient(null); // éviter les cycles JSON (optionnel)
         saved.setPrestataire(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+    @PutMapping("/{id}/statut")
+    public ResponseEntity<?> updateStatut(@PathVariable Long id,
+                                          @RequestParam String statut,
+                                          @RequestParam Long prestataireId) {
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Réservation non trouvée"));
+        }
+        // Vérifier que le prestataire est bien celui associé à la réservation
+        if (!reservation.getPrestataire().getId().equals(prestataireId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à modifier cette réservation"));
+        }
+        // Liste des statuts autorisés (optionnel)
+        List<String> statutsValides = Arrays.asList("EN_ATTENTE", "ACCEPTEE", "REFUSEE", "EN_COURS", "TERMINEE", "ANNULEE");
+        if (!statutsValides.contains(statut)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Statut invalide"));
+        }
+        reservation.setStatut(statut);
+        Reservation updated = reservationRepository.save(reservation);
+        updated.setClient(null);
+        updated.setPrestataire(null);
+        return ResponseEntity.ok(updated);
+    }
+
+    @GetMapping("/client/{clientId}")
+    public ResponseEntity<List<Reservation>> getReservationsByClient(@PathVariable Long clientId) {
+        List<Reservation> reservations = reservationRepository.findByClientId(clientId);
+        reservations.forEach(r -> {
+            r.setClient(null);
+            r.getPrestataire().setMotDePasse(null);
+        });
+        return ResponseEntity.ok(reservations);
+    }
+
+    @GetMapping("/prestataire/{prestataireId}")
+    public ResponseEntity<List<Reservation>> getReservationsByPrestataire(@PathVariable Long prestataireId) {
+        List<Reservation> reservations = reservationRepository.findByPrestataireId(prestataireId);
+        reservations.forEach(r -> {
+            r.setPrestataire(null);
+            r.getClient().setMotDePasse(null);
+        });
+        return ResponseEntity.ok(reservations);
     }
 }
