@@ -2,6 +2,7 @@ package com.capstone.serviceplatform.controller;
 
 import com.capstone.serviceplatform.dto.AvisRequest;
 import com.capstone.serviceplatform.dto.LitigeRequest;
+import com.capstone.serviceplatform.service.NotificationService;
 import com.capstone.serviceplatform.dto.ReservationRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
@@ -33,6 +34,8 @@ public class ReservationController {
     private AvisRepository avisRepository;
     @Autowired
     private LitigeRepository litigeRepository;
+    @Autowired
+    private NotificationService notificationService;
 
     @PostMapping
     public ResponseEntity<?> creerReservation(@RequestBody ReservationRequest request) {
@@ -86,6 +89,18 @@ public class ReservationController {
         reservation.setMontant(BigDecimal.valueOf(request.getMontant()));
 
         Reservation saved = reservationRepository.save(reservation);
+        // Envoi d'une notification push au prestataire
+        if (prestataire.getFcmToken() != null && !prestataire.getFcmToken().isEmpty()) {
+            try {
+                notificationService.envoyerNotification(
+                        prestataire.getFcmToken(),
+                        "Nouvelle réservation",
+                        "Nouvelle demande de " + client.getNom() + " le " + request.getDateHeure()
+                );
+            } catch (Exception e) {
+                e.printStackTrace(); // Ne pas bloquer le flux principal
+            }
+        }
         saved.setClient(null); // éviter les cycles JSON (optionnel)
         saved.setPrestataire(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -112,6 +127,35 @@ public class ReservationController {
         }
         reservation.setStatut(statut);
         Reservation updated = reservationRepository.save(reservation);
+        // Envoi d'une notification au client (si son token existe)
+        String clientToken = reservation.getClient().getFcmToken();
+        if (clientToken != null && !clientToken.isEmpty()) {
+            String message;
+            switch (statut) {
+                case "ACCEPTEE":
+                    message = "Votre réservation a été acceptée par le prestataire.";
+                    break;
+                case "REFUSEE":
+                    message = "Votre réservation a été refusée.";
+                    break;
+                case "EN_COURS":
+                    message = "Le prestataire est en route.";
+                    break;
+                case "TERMINEE":
+                    message = "La prestation est terminée. Merci de votre confiance.";
+                    break;
+                case "ANNULEE":
+                    message = "Votre réservation a été annulée.";
+                    break;
+                default:
+                    message = "Le statut de votre réservation a changé : " + statut;
+            }
+            try {
+                notificationService.envoyerNotification(clientToken, "Mise à jour de réservation", message);
+            } catch (Exception e) {
+                e.printStackTrace(); // Ne pas bloquer la mise à jour du statut
+            }
+        }
         updated.setClient(null);
         updated.setPrestataire(null);
         return ResponseEntity.ok(updated);
