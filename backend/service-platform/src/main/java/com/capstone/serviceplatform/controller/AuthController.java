@@ -1,11 +1,14 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.LoginRequest;
 import com.capstone.serviceplatform.dto.RegisterRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
+import com.capstone.serviceplatform.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -23,6 +26,20 @@ public class AuthController {
     private ClientRepository clientRepository;
     @Autowired
     private PrestataireRepository prestataireRepository;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (user == null || !passwordEncoder.matches(request.getMotDePasse(), user.getMotDePasse())) {
+            return ResponseEntity.status(401).body(Map.of("error", "Email ou mot de passe incorrect"));
+        }
+        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
+        return ResponseEntity.ok(Map.of("token", token, "role", user.getRole(), "id", user.getId()));
+    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -39,7 +56,7 @@ public class AuthController {
             Client client = new Client();
             client.setNom(request.getNom());
             client.setEmail(request.getEmail());
-            client.setMotDePasse(request.getMotDePasse());
+            client.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
             client.setTelephone(request.getTelephone());
             client.setPhoto(request.getPhoto());
             client.setDateInscription(new Date());
@@ -51,7 +68,7 @@ public class AuthController {
             Prestataire prestataire = new Prestataire();
             prestataire.setNom(request.getNom());
             prestataire.setEmail(request.getEmail());
-            prestataire.setMotDePasse(request.getMotDePasse());
+            prestataire.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
             prestataire.setTelephone(request.getTelephone());
             prestataire.setPhoto(request.getPhoto());
             prestataire.setDateInscription(new Date());
@@ -69,7 +86,7 @@ public class AuthController {
             User user = new User();
             user.setNom(request.getNom());
             user.setEmail(request.getEmail());
-            user.setMotDePasse(request.getMotDePasse());
+            user.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
             user.setTelephone(request.getTelephone());
             user.setPhoto(request.getPhoto());
             user.setDateInscription(new Date());
