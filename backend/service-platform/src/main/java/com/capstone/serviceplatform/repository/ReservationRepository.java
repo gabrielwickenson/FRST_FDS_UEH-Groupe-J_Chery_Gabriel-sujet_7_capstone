@@ -12,4 +12,5 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     boolean existsConflit(@Param("prestataireId") Long prestataireId, @Param("dateHeure") LocalDateTime dateHeure);
     List<Reservation> findByClientId(Long clientId);
     List<Reservation> findByPrestataireId(Long prestataireId);
+    List<Reservation> findByPrestataireIdAndStatut(Long prestataireId, String statut);
 }

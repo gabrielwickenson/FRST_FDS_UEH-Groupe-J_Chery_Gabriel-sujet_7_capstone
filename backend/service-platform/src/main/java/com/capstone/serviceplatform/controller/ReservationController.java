@@ -93,7 +93,7 @@ public class ReservationController {
         if (prestataire.getFcmToken() != null && !prestataire.getFcmToken().isEmpty()) {
             try {
                 notificationService.envoyerNotification(
-                        prestataire.getFcmToken(),
+                        prestataire.getFcmToken(),prestataire,
                         "Nouvelle réservation",
                         "Nouvelle demande de " + client.getNom() + " le " + request.getDateHeure()
                 );
@@ -151,7 +151,7 @@ public class ReservationController {
                     message = "Le statut de votre réservation a changé : " + statut;
             }
             try {
-                notificationService.envoyerNotification(clientToken, "Mise à jour de réservation", message);
+                notificationService.envoyerNotification(clientToken, reservation.getClient(),"Mise à jour de réservation", message);
             } catch (Exception e) {
                 e.printStackTrace(); // Ne pas bloquer la mise à jour du statut
             }
