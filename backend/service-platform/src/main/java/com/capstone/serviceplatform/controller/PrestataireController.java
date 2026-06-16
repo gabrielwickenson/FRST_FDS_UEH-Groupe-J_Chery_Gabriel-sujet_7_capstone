@@ -1,10 +1,13 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.entity.Disponibilite;
 import com.capstone.serviceplatform.entity.Prestataire;
 import com.capstone.serviceplatform.entity.Reservation;
+import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.ReservationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +25,8 @@ public class PrestataireController {
     private PrestataireRepository prestataireRepository;
     @Autowired
     private ReservationRepository reservationRepository;
+    @Autowired
+    private DisponibiliteRepository disponibiliteRepository;
 
     @GetMapping("/recherche")
     public ResponseEntity<List<Prestataire>> rechercherPrestataires(
@@ -61,5 +66,37 @@ public class PrestataireController {
         stats.put("noteMoyenne", moyenne);
 
         return ResponseEntity.ok(stats);
+    }
+
+    // Ajouter une disponibilité
+    @PostMapping("/{id}/disponibilites")
+    public ResponseEntity<?> ajouterDisponibilite(@PathVariable Long id, @RequestBody Disponibilite disponibilite) {
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Prestataire non trouvé"));
+        }
+        disponibilite.setPrestataire(prestataire);
+        Disponibilite saved = disponibiliteRepository.save(disponibilite);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    // Lister les disponibilités d'un prestataire
+    @GetMapping("/{id}/disponibilites")
+    public ResponseEntity<List<Disponibilite>> getDisponibilites(@PathVariable Long id) {
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(disponibiliteRepository.findByPrestataire(prestataire));
+    }
+
+    // Supprimer une disponibilité
+    @DeleteMapping("/disponibilites/{disponibiliteId}")
+    public ResponseEntity<?> supprimerDisponibilite(@PathVariable Long disponibiliteId) {
+        if (!disponibiliteRepository.existsById(disponibiliteId)) {
+            return ResponseEntity.notFound().build();
+        }
+        disponibiliteRepository.deleteById(disponibiliteId);
+        return ResponseEntity.noContent().build();
     }
 }

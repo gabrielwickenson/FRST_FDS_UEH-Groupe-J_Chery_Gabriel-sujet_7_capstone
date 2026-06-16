@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.Date;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,6 +37,8 @@ public class ReservationController {
     private LitigeRepository litigeRepository;
     @Autowired
     private NotificationService notificationService;
+    @Autowired
+    private DisponibiliteRepository disponibiliteRepository;
 
     @PostMapping
     public ResponseEntity<?> creerReservation(@RequestBody ReservationRequest request) {
@@ -71,11 +74,25 @@ public class ReservationController {
                     .body(Map.of("error", "Ce prestataire ne propose pas le service demandé : " + service.getNom()));
         }
 
-        // Vérifier si le créneau est déjà pris (pour ce prestataire)
+        // Vérifier si le créneau est déjà pris pour ce prestataire (conflit)
         boolean conflit = reservationRepository.existsConflit(prestataire.getId(), request.getDateHeure());
         if (conflit) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Le prestataire est déjà réservé à cette date/heure"));
+        }
+
+        // Vérification des disponibilités (jour et heure)
+        String jourDemande = request.getDateHeure().getDayOfWeek().name(); // ex: "MONDAY"
+        LocalTime heureDemande = request.getDateHeure().toLocalTime();
+        List<Disponibilite> dispoList = disponibiliteRepository.findByPrestataire(prestataire);
+        boolean dispoOk = dispoList.stream().anyMatch(d ->
+                d.getJour().equalsIgnoreCase(jourDemande) &&
+                        !heureDemande.isBefore(d.getHeureDebut()) &&
+                        !heureDemande.isAfter(d.getHeureFin())
+        );
+        if (!dispoOk) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Le prestataire n'est pas disponible à cette date/heure"));
         }
 
         // Créer la réservation

@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/reservations/*/paiement").hasAuthority("CLIENT")
                         // Prestataire
                         .requestMatchers("/api/prestataires/**").hasAuthority("PRESTATAIRE")
+                        //.requestMatchers("/api/prestataires/**").permitAll()
                         .requestMatchers("/api/reservations/prestataire/**").hasAuthority("PRESTATAIRE")
                         .requestMatchers("/api/reservations/*/statut").hasAuthority("PRESTATAIRE")
                         .anyRequest().authenticated()

@@ -32,7 +32,7 @@ public class JwtUtils {
 
     public String getRoleFromToken(String token) {
         return (String) Jwts.parserBuilder().setSigningKey(getKey()).build()
-                .parseClaimsJws(token).getBody().get("role");
+                .parseClaimsJws(token).getBody().get("role", String.class);
     }
 
     public boolean validateToken(String token) {

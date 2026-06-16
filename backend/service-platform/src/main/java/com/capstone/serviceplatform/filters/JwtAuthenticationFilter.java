@@ -34,14 +34,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
+            // dans JwtAuthenticationFilter.doFilterInternal
             if (jwtUtils.validateToken(token)) {
                 String email = jwtUtils.getEmailFromToken(token);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-                // Plus d'erreur : on utilise la méthode de jwtUtils
-                String role = jwtUtils.getRoleFromToken(token);
-                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
+                // Les autorités sont déjà dans userDetails (grâce au service modifié)
                 UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
