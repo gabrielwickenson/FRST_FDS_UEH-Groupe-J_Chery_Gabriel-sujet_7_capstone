@@ -6,6 +6,7 @@ import com.capstone.serviceplatform.service.NotificationService;
 import com.capstone.serviceplatform.dto.ReservationRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,7 +42,7 @@ public class ReservationController {
     private DisponibiliteRepository disponibiliteRepository;
 
     @PostMapping
-    public ResponseEntity<?> creerReservation(@RequestBody ReservationRequest request) {
+    public ResponseEntity<?> creerReservation(@RequestBody @Valid ReservationRequest request) {
         // Vérifier l'existence du client
         Client client = clientRepository.findById(request.getClientId())
                 .orElse(null);
@@ -200,7 +201,7 @@ public class ReservationController {
 
     @PostMapping("/{id}/avis")
     public ResponseEntity<?> laisserAvis(@PathVariable Long id,
-                                         @RequestBody AvisRequest avisRequest,
+                                         @RequestBody @Valid AvisRequest avisRequest,
                                          @RequestParam Long clientId) {
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
@@ -237,7 +238,7 @@ public class ReservationController {
     // Ouvrir un litige (client)
     @PostMapping("/{id}/litige")
     public ResponseEntity<?> ouvrirLitige(@PathVariable Long id,
-                                          @RequestBody LitigeRequest request,
+                                          @RequestBody @Valid LitigeRequest request,
                                           @RequestParam Long clientId) {
         //Vérifie si la réservation existe.
         Reservation reservation = reservationRepository.findById(id).orElse(null);

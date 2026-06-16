@@ -1,17 +1,33 @@
 package com.capstone.serviceplatform.dto;
 
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 import java.time.LocalDateTime;
 
 public class ReservationRequest {
+    @NotNull(message = "L'ID du client est obligatoire")
     private Long clientId;
+
+    @NotNull(message = "L'ID du prestataire est obligatoire")
     private Long prestataireId;
+
+    @NotNull(message = "L'ID du service est obligatoire")
     private Long serviceId;
+
+    @NotNull(message = "La date/heure est obligatoire")
+    @Future(message = "La date doit être dans le futur")
     private LocalDateTime dateHeure;
+
+    @NotBlank(message = "L'adresse est obligatoire")
     private String adresse;
+
+    @Positive(message = "Le montant doit être supérieur à 0")
     private Double montant;
 
     // getters et setters
-
     public Long getClientId() {
         return clientId;
     }

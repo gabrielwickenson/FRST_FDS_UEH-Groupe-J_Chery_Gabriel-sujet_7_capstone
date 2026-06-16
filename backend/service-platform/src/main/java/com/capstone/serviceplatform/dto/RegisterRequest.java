@@ -1,18 +1,32 @@
 package com.capstone.serviceplatform.dto;
 
 import com.capstone.serviceplatform.entity.Role;
+import jakarta.validation.constraints.*;
 
 public class RegisterRequest {
+    @NotBlank(message = "Le nom est obligatoire")
     private String nom;
+
+    @NotBlank(message = "L'email est obligatoire")
+    @Email(message = "Format d'email invalide")
     private String email;
+
+    @NotBlank(message = "Le mot de passe est obligatoire")
+    @Size(min = 4, message = "Le mot de passe doit contenir au moins 4 caractères")
     private String motDePasse;
+
     private String telephone;
     private String photo;
+
+    @NotNull(message = "Le rôle est obligatoire (CLIENT, PRESTATAIRE)")
     private Role role;
+
     // champs spécifiques client
     private String adresseParDefaut;
+
     // champs spécifiques prestataire
     private String competences;
+    @PositiveOrZero(message = "Le tarif horaire doit être positif")
     private Double tarifHoraire;
     private String zoneIntervention;
 

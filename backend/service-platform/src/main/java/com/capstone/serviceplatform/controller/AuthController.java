@@ -5,6 +5,7 @@ import com.capstone.serviceplatform.dto.RegisterRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
 import com.capstone.serviceplatform.utils.JwtUtils;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +33,7 @@ public class AuthController {
     private JwtUtils jwtUtils;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@RequestBody @Valid LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail()).orElse(null);
         if (user == null || !passwordEncoder.matches(request.getMotDePasse(), user.getMotDePasse())) {
             return ResponseEntity.status(401).body(Map.of("error", "Email ou mot de passe incorrect"));
@@ -42,7 +43,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@RequestBody @Valid RegisterRequest request) {
         // Vérifier si l'email existe déjà
         if (userRepository.existsByEmail(request.getEmail())) {
             Map<String, String> error = new HashMap<>();
