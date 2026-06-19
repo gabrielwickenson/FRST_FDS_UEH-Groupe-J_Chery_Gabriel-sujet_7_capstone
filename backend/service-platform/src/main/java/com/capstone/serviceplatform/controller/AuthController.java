@@ -5,7 +5,6 @@ import com.capstone.serviceplatform.dto.RegisterRequest;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.*;
 import com.capstone.serviceplatform.utils.JwtUtils;
-import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,23 +31,11 @@ public class AuthController {
     @Autowired
     private JwtUtils jwtUtils;
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody @Valid LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
-        if (user == null || !passwordEncoder.matches(request.getMotDePasse(), user.getMotDePasse())) {
-            return ResponseEntity.status(401).body(Map.of("error", "Email ou mot de passe incorrect"));
-        }
-        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
-        return ResponseEntity.ok(Map.of("token", token, "role", user.getRole(), "id", user.getId()));
-    }
-
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody @Valid RegisterRequest request) {
-        // Vérifier si l'email existe déjà
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "Email déjà utilisé");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Email déjà utilisé"));
         }
 
         User savedUser = null;
@@ -57,7 +44,7 @@ public class AuthController {
             Client client = new Client();
             client.setNom(request.getNom());
             client.setEmail(request.getEmail());
-            client.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
+            client.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Haché
             client.setTelephone(request.getTelephone());
             client.setPhoto(request.getPhoto());
             client.setDateInscription(new Date());
@@ -69,7 +56,7 @@ public class AuthController {
             Prestataire prestataire = new Prestataire();
             prestataire.setNom(request.getNom());
             prestataire.setEmail(request.getEmail());
-            prestataire.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
+            prestataire.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Haché
             prestataire.setTelephone(request.getTelephone());
             prestataire.setPhoto(request.getPhoto());
             prestataire.setDateInscription(new Date());
@@ -83,11 +70,10 @@ public class AuthController {
             savedUser = prestataireRepository.save(prestataire);
         }
         else {
-            // ADMIN
             User user = new User();
             user.setNom(request.getNom());
             user.setEmail(request.getEmail());
-            user.setMotDePasse(passwordEncoder.encode(request.getMotDePasse())); // Hachage
+            user.setMotDePasse(passwordEncoder.encode(request.getMotDePasse()));
             user.setTelephone(request.getTelephone());
             user.setPhoto(request.getPhoto());
             user.setDateInscription(new Date());
@@ -95,8 +81,32 @@ public class AuthController {
             savedUser = userRepository.save(user);
         }
 
-        // Ne pas renvoyer le mot de passe
         savedUser.setMotDePasse(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Email incorrect"));
+        }
+        if (!passwordEncoder.matches(request.getMotDePasse(), user.getMotDePasse())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Mot de passe incorrect"));
+        }
+
+        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("email", user.getEmail());
+        response.put("nom", user.getNom());
+        response.put("role", user.getRole().name());
+        response.put("token", token);
+
+        user.setMotDePasse(null);
+        return ResponseEntity.ok(response);
     }
 }

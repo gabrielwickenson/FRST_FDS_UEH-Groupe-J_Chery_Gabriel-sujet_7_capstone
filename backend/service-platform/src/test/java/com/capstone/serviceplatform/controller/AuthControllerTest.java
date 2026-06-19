@@ -4,7 +4,6 @@ import com.capstone.serviceplatform.dto.RegisterRequest;
 import com.capstone.serviceplatform.entity.Client;
 import com.capstone.serviceplatform.entity.Prestataire;
 import com.capstone.serviceplatform.entity.Role;
-import com.capstone.serviceplatform.entity.User;
 import com.capstone.serviceplatform.repository.ClientRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.UserRepository;
