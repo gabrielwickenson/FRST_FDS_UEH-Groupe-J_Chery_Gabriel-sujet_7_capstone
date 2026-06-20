@@ -15,12 +15,23 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.*;
 
 @RestController
 @RequestMapping("/api/reservations")
+@Tag(name = "Réservations", description = "Gestion des réservations, avis, litiges et paiement")
+@SecurityRequirement(name = "Bearer Authentication") // toutes les méthodes de ce contrôleur nécessitent un token
 public class ReservationController {
 
     @Autowired
@@ -44,6 +55,13 @@ public class ReservationController {
 
     // -------------------- CRÉATION DE RÉSERVATION --------------------
     @PostMapping
+    @Operation(summary = "Créer une nouvelle réservation (client)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Réservation créée"),
+            @ApiResponse(responseCode = "404", description = "Client, prestataire ou service non trouvé"),
+            @ApiResponse(responseCode = "409", description = "Conflit de créneau"),
+            @ApiResponse(responseCode = "400", description = "Données invalides")
+    })
     public ResponseEntity<?> creerReservation(@RequestBody @Valid ReservationRequest request) {
         Client client = clientRepository.findById(request.getClientId()).orElse(null);
         if (client == null) {
@@ -124,9 +142,16 @@ public class ReservationController {
 
     // -------------------- MISE À JOUR STATUT --------------------
     @PutMapping("/{id}/statut")
-    public ResponseEntity<?> updateStatut(@PathVariable Long id,
-                                          @RequestParam String statut,
-                                          @RequestParam Long prestataireId) {
+    @Operation(summary = "Mettre à jour le statut d'une réservation (prestataire)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Statut mis à jour"),
+            @ApiResponse(responseCode = "404", description = "Réservation non trouvée"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé"),
+            @ApiResponse(responseCode = "400", description = "Statut invalide")
+    })
+    public ResponseEntity<?> updateStatut( @Parameter(description = "ID de la réservation") @PathVariable Long id,
+                                           @Parameter(description = "Nouveau statut (EN_ATTENTE, ACCEPTEE, REFUSEE, EN_COURS, TERMINEE, ANNULEE)") @RequestParam String statut,
+                                           @Parameter(description = "ID du prestataire pour vérification") @RequestParam Long prestataireId) {
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -183,6 +208,11 @@ public class ReservationController {
     // -------------------- CONSULTATION RÉSERVATIONS (CLIENT) --------------------
     // Ancien endpoint avec ID – protégé par vérification de propriétaire
     @GetMapping("/client/{clientId}")
+    @Operation(summary = "Historique des réservations d'un client")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des réservations"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé")
+    })
     public ResponseEntity<?> getReservationsByClient(@PathVariable Long clientId) {
         // Récupérer l'utilisateur authentifié
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -264,6 +294,11 @@ public class ReservationController {
 
     // Nouvel endpoint sécurisé : réservations du prestataire connecté
     @GetMapping("/me/prestataire")
+    @Operation(summary = "Agenda du prestataire connecté (ses réservations)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des réservations"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux prestataires")
+    })
     public ResponseEntity<?> getMesReservationsPrestataire() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User currentUser = userRepository.findByEmail(email).orElse(null);
@@ -288,6 +323,12 @@ public class ReservationController {
 
     // -------------------- ÉVALUATION (CLIENT) --------------------
     @PostMapping("/{id}/avis")
+    @Operation(summary = "Laisser un avis sur une réservation (client)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Avis créé"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé ou réservation non terminée"),
+            @ApiResponse(responseCode = "404", description = "Réservation non trouvée")
+    })
     public ResponseEntity<?> laisserAvis(@PathVariable Long id,
                                          @RequestBody @Valid AvisRequest avisRequest,
                                          @RequestParam Long clientId) {
@@ -324,9 +365,15 @@ public class ReservationController {
 
     // -------------------- LITIGES --------------------
     @PostMapping("/{id}/litige")
-    public ResponseEntity<?> ouvrirLitige(@PathVariable Long id,
-                                          @RequestBody @Valid LitigeRequest request,
-                                          @RequestParam Long clientId) {
+    @Operation(summary = "Ouvrir un litige (client)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Litige ouvert"),
+            @ApiResponse(responseCode = "409", description = "Litige déjà existant"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé")
+    })
+    public ResponseEntity<?> ouvrirLitige( @Parameter(description = "ID de la réservation") @PathVariable Long id,
+                                           @Valid @RequestBody LitigeRequest request,
+                                           @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId)  {
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null)
             return ResponseEntity.notFound().build();
@@ -345,14 +392,23 @@ public class ReservationController {
 
     // Admin : consulter tous les litiges ouverts
     @GetMapping("/litiges/ouverts")
+    @Operation(summary = "Consulter tous les litiges ouverts (admin)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des litiges ouverts")
+    })
     public ResponseEntity<List<Litige>> getLitigesOuverts() {
         return ResponseEntity.ok(litigeRepository.findByStatut("OUVERT"));
     }
 
     // Admin : résoudre un litige
     @PutMapping("/litiges/{litigeId}")
-    public ResponseEntity<?> resoudreLitige(@PathVariable Long litigeId,
-                                            @RequestParam String resolution) {
+    @Operation(summary = "Résoudre un litige (admin)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Litige résolu"),
+            @ApiResponse(responseCode = "404", description = "Litige non trouvé")
+    })
+    public ResponseEntity<?> resoudreLitige(@Parameter(description = "ID du litige") @PathVariable Long litigeId,
+                                            @Parameter(description = "Décision de résolution") @RequestParam String resolution) {
         Litige litige = litigeRepository.findById(litigeId).orElse(null);
         if (litige == null) return ResponseEntity.notFound().build();
         litige.setStatut("RESOLU");
@@ -363,9 +419,15 @@ public class ReservationController {
 
     // -------------------- PAIEMENT SIMULÉ --------------------
     @PostMapping("/{id}/paiement")
-    public ResponseEntity<?> simulerPaiement(@PathVariable Long id,
-                                             @RequestParam String modePaiement,
-                                             @RequestParam Long clientId) {
+    @Operation(summary = "Simuler un paiement (client)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Paiement simulé avec succès"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé"),
+            @ApiResponse(responseCode = "404", description = "Réservation non trouvée")
+    })
+    public ResponseEntity<?> simulerPaiement(@Parameter(description = "ID de la réservation") @PathVariable Long id,
+                                             @Parameter(description = "Mode de paiement (mobile_money, cash)") @RequestParam String modePaiement,
+                                             @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId)  {
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

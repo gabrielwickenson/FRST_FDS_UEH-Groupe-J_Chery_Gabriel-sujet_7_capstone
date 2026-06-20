@@ -11,6 +11,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
@@ -18,6 +27,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Authentification", description = "Inscription et connexion (public)")
 public class AuthController {
 
     @Autowired
@@ -32,6 +42,13 @@ public class AuthController {
     private JwtUtils jwtUtils;
 
     @PostMapping("/register")
+    @Operation(summary = "Inscription d'un nouvel utilisateur (client ou prestataire)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Utilisateur créé avec succès",
+                    content = @Content(schema = @Schema(implementation = User.class))),
+            @ApiResponse(responseCode = "409", description = "Email déjà utilisé"),
+            @ApiResponse(responseCode = "400", description = "Données invalides")
+    })
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -86,6 +103,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "Connexion et récupération du token JWT")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Connexion réussie, token JWT renvoyé"),
+            @ApiResponse(responseCode = "401", description = "Email ou mot de passe incorrect")
+    })
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail()).orElse(null);
         if (user == null) {

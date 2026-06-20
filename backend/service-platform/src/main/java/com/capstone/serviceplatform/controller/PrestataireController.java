@@ -6,10 +6,20 @@ import com.capstone.serviceplatform.entity.Reservation;
 import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.ReservationRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -19,6 +29,8 @@ import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/prestataires")
+@Tag(name = "Prestataires", description = "Gestion des prestataires, disponibilités et statistiques")
+@SecurityRequirement(name = "Bearer Authentication")
 public class PrestataireController {
 
     @Autowired
@@ -29,10 +41,15 @@ public class PrestataireController {
     private DisponibiliteRepository disponibiliteRepository;
 
     @GetMapping("/recherche")
+    @Operation(summary = "Recherche publique de prestataires (filtres optionnels)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des prestataires filtrés",
+                    content = @Content(schema = @Schema(implementation = Prestataire.class)))
+    })
     public ResponseEntity<List<Prestataire>> rechercherPrestataires(
-            @RequestParam(required = false) String service,
-            @RequestParam(required = false) Double noteMin,
-            @RequestParam(required = false) String zone) {
+            @Parameter(description = "Nom du service (ex: plomberie)") @RequestParam(required = false) String service,
+            @Parameter(description = "Note minimale (ex: 4)") @RequestParam(required = false) Double noteMin,
+            @Parameter(description = "Zone d'intervention (ex: Pétion-Ville)") @RequestParam(required = false) String zone) {
 
         List<Prestataire> resultats = prestataireRepository.rechercherParFiltres(service, noteMin, zone);
         // Masquer le mot de passe pour la réponse
@@ -41,6 +58,11 @@ public class PrestataireController {
     }
 
     @GetMapping("/{id}/statistiques")
+    @Operation(summary = "Statistiques d'un prestataire (revenus, nombre prestations, note moyenne)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Statistiques retournées"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
     public ResponseEntity<?> getStatistiques(@PathVariable Long id) {
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
         if (prestataire == null) return ResponseEntity.notFound().build();
@@ -70,7 +92,14 @@ public class PrestataireController {
 
     // Ajouter une disponibilité
     @PostMapping("/{id}/disponibilites")
-    public ResponseEntity<?> ajouterDisponibilite(@PathVariable Long id, @RequestBody Disponibilite disponibilite) {
+    @Operation(summary = "Ajouter une disponibilité pour un prestataire")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Disponibilité ajoutée"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé"),
+            @ApiResponse(responseCode = "400", description = "Données invalides")
+    })
+    public ResponseEntity<?> ajouterDisponibilite(@Parameter(description = "ID du prestataire") @PathVariable Long id,
+                                                  @Valid @RequestBody Disponibilite disponibilite) {
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Prestataire non trouvé"));
@@ -82,6 +111,11 @@ public class PrestataireController {
 
     // Lister les disponibilités d'un prestataire
     @GetMapping("/{id}/disponibilites")
+    @Operation(summary = "Lister les disponibilités d'un prestataire")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des disponibilités"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
     public ResponseEntity<List<Disponibilite>> getDisponibilites(@PathVariable Long id) {
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
         if (prestataire == null) {
@@ -92,6 +126,11 @@ public class PrestataireController {
 
     // Supprimer une disponibilité
     @DeleteMapping("/disponibilites/{disponibiliteId}")
+    @Operation(summary = "Supprimer une disponibilité")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Supprimée avec succès"),
+            @ApiResponse(responseCode = "404", description = "Disponibilité non trouvée")
+    })
     public ResponseEntity<?> supprimerDisponibilite(@PathVariable Long disponibiliteId) {
         if (!disponibiliteRepository.existsById(disponibiliteId)) {
             return ResponseEntity.notFound().build();

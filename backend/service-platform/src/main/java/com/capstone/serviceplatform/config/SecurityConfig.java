@@ -40,11 +40,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/services", "/api/prestataires/recherche").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/**").permitAll()  // ⚠️ TEMPORAIRE : autorise tout
                 )
                 .addFilterBefore(jwtAuthenticationFilter, AuthorizationFilter.class);
-
         return http.build();
     }
 }
