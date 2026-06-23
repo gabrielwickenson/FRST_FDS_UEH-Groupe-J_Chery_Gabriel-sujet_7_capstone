@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.capstone.serviceplatform.mobile"
+    namespace = "com.Kolabor.app"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.capstone.serviceplatform.mobile"
+        applicationId = "com.Kolabor.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

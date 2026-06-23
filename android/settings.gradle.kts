@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ServicePlatformMobile"
+rootProject.name = "Kolabor"
 include(":app")
