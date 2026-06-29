@@ -147,29 +147,58 @@ public class ReservationController {
             @ApiResponse(responseCode = "200", description = "Statut mis à jour"),
             @ApiResponse(responseCode = "404", description = "Réservation non trouvée"),
             @ApiResponse(responseCode = "403", description = "Non autorisé"),
-            @ApiResponse(responseCode = "400", description = "Statut invalide")
+            @ApiResponse(responseCode = "400", description = "Statut invalide"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié")
     })
-    public ResponseEntity<?> updateStatut( @Parameter(description = "ID de la réservation") @PathVariable Long id,
-                                           @Parameter(description = "Nouveau statut (EN_ATTENTE, ACCEPTEE, REFUSEE, EN_COURS, TERMINEE, ANNULEE)") @RequestParam String statut,
-                                           @Parameter(description = "ID du prestataire pour vérification") @RequestParam Long prestataireId) {
+    public ResponseEntity<?> updateStatut(@Parameter(description = "ID de la réservation") @PathVariable Long id,
+                                          @Parameter(description = "Nouveau statut (EN_ATTENTE, ACCEPTEE, REFUSEE, EN_COURS, TERMINEE, ANNULEE)") @RequestParam String statut,
+                                          @Parameter(description = "ID du prestataire pour vérification") @RequestParam Long prestataireId) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 3. Vérifier que l'ID du prestataire fourni correspond à l'ID de l'utilisateur connecté
+        if (!currentUser.getId().equals(prestataireId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Le prestataireId fourni ne correspond pas à votre compte"));
+        }
+
+        // 4. Récupérer la réservation
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Réservation non trouvée"));
         }
+
+        // 5. Vérifier que le prestataire associé à la réservation correspond bien au prestataire connecté
         if (!reservation.getPrestataire().getId().equals(prestataireId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à modifier cette réservation"));
         }
+
+        // 6. Valider le statut
         List<String> statutsValides = Arrays.asList("EN_ATTENTE", "ACCEPTEE", "REFUSEE", "EN_COURS", "TERMINEE", "ANNULEE");
         if (!statutsValides.contains(statut)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Statut invalide"));
         }
+
+        // 7. Mettre à jour la réservation
         reservation.setStatut(statut);
         Reservation updated = reservationRepository.save(reservation);
 
-        // Notification au client
+        // 8. Notification au client
         String clientToken = reservation.getClient().getFcmToken();
         if (clientToken != null && !clientToken.isEmpty()) {
             String message;
@@ -204,32 +233,38 @@ public class ReservationController {
         updated.setPrestataire(null);
         return ResponseEntity.ok(updated);
     }
-
     // -------------------- CONSULTATION RÉSERVATIONS (CLIENT) --------------------
     // Ancien endpoint avec ID – protégé par vérification de propriétaire
     @GetMapping("/client/{clientId}")
     @Operation(summary = "Historique des réservations d'un client")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Liste des réservations"),
-            @ApiResponse(responseCode = "403", description = "Non autorisé")
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (rôle incorrect ou client non autorisé)")
     })
     public ResponseEntity<?> getReservationsByClient(@PathVariable Long clientId) {
-        // Récupérer l'utilisateur authentifié
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (!(principal instanceof UserDetails)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Non authentifié"));
-        }
-        String email = ((UserDetails) principal).getUsername();
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Utilisateur non trouvé"));
-        }
-        // Vérifier que le client demandé est bien celui connecté
-        if (!currentUser.getId().equals(clientId) || currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès non autorisé à ces réservations"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
+        // 2. Vérifier que l'utilisateur est bien un CLIENT
+        if (currentUser.getRole() != Role.CLIENT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux clients"));
+        }
+
+        // 3. Vérifier que l'ID dans l'URL correspond à l'ID du client authentifié
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les réservations d'un autre client"));
+        }
+
+        // 4. Récupérer les réservations
         List<Reservation> reservations = reservationRepository.findByClientId(clientId);
         reservations.forEach(r -> {
             r.setClient(null);
@@ -265,23 +300,36 @@ public class ReservationController {
     }
 
     // -------------------- CONSULTATION RÉSERVATIONS (PRESTATAIRE) --------------------
-    // Ancien endpoint avec ID – protégé par vérification de propriétaire
     @GetMapping("/prestataire/{prestataireId}")
+    @Operation(summary = "Récupérer les réservations d'un prestataire (agenda)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des réservations"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (rôle incorrect ou prestataire non autorisé)")
+    })
     public ResponseEntity<?> getReservationsByPrestataire(@PathVariable Long prestataireId) {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (!(principal instanceof UserDetails)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Non authentifié"));
-        }
-        String email = ((UserDetails) principal).getUsername();
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Utilisateur non trouvé"));
-        }
-        if (!currentUser.getId().equals(prestataireId) || currentUser.getRole() != Role.PRESTATAIRE) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès non autorisé à ces réservations"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
+        // 2. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 3. Vérifier que l'ID dans l'URL correspond à l'ID du prestataire authentifié
+        if (!currentUser.getId().equals(prestataireId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les réservations d'un autre prestataire"));
+        }
+
+        // 4. Récupérer les réservations
         List<Reservation> reservations = reservationRepository.findByPrestataireId(prestataireId);
         reservations.forEach(r -> {
             r.setPrestataire(null);
@@ -326,26 +374,55 @@ public class ReservationController {
     @Operation(summary = "Laisser un avis sur une réservation (client)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Avis créé"),
-            @ApiResponse(responseCode = "403", description = "Non autorisé ou réservation non terminée"),
+            @ApiResponse(responseCode = "400", description = "Réservation non terminée"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (rôle incorrect ou client non autorisé)"),
             @ApiResponse(responseCode = "404", description = "Réservation non trouvée")
     })
     public ResponseEntity<?> laisserAvis(@PathVariable Long id,
                                          @RequestBody @Valid AvisRequest avisRequest,
                                          @RequestParam Long clientId) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un CLIENT
+        if (currentUser.getRole() != Role.CLIENT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux clients"));
+        }
+
+        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à laisser un avis pour un autre client"));
+        }
+
+        // 4. Récupérer la réservation
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Réservation non trouvée"));
         }
+
+        // 5. Vérifier que le client de la réservation correspond bien au client connecté (redondance)
         if (!reservation.getClient().getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à évaluer cette réservation"));
         }
+
+        // 6. Vérifier que la réservation est terminée
         if (!"TERMINEE".equals(reservation.getStatut())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Seules les prestations terminées peuvent être évaluées"));
         }
 
+        // 7. Créer et sauvegarder l'avis
         Avis avis = new Avis();
         avis.setReservation(reservation);
         avis.setNote(avisRequest.getNote());
@@ -353,7 +430,7 @@ public class ReservationController {
         avis.setDate(new Date());
         avisRepository.save(avis);
 
-        // Mise à jour moyenne
+        // 8. Mettre à jour la moyenne du prestataire
         Prestataire prestataire = reservation.getPrestataire();
         List<Avis> avisList = avisRepository.findByReservationPrestataireId(prestataire.getId());
         double moyenne = avisList.stream().mapToInt(Avis::getNote).average().orElse(0.0);
@@ -368,36 +445,91 @@ public class ReservationController {
     @Operation(summary = "Ouvrir un litige (client)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Litige ouvert"),
-            @ApiResponse(responseCode = "409", description = "Litige déjà existant"),
-            @ApiResponse(responseCode = "403", description = "Non autorisé")
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (rôle incorrect ou client non autorisé)"),
+            @ApiResponse(responseCode = "404", description = "Réservation non trouvée"),
+            @ApiResponse(responseCode = "409", description = "Litige déjà existant")
     })
-    public ResponseEntity<?> ouvrirLitige( @Parameter(description = "ID de la réservation") @PathVariable Long id,
-                                           @Valid @RequestBody LitigeRequest request,
-                                           @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId)  {
-        Reservation reservation = reservationRepository.findById(id).orElse(null);
-        if (reservation == null)
-            return ResponseEntity.notFound().build();
-        if (!reservation.getClient().getId().equals(clientId))
-            return ResponseEntity.status(403).body(Map.of("error", "Non autorisé"));
-        if (litigeRepository.existsByReservationId(id))
-            return ResponseEntity.status(409).body(Map.of("error", "Litige déjà existant"));
+    public ResponseEntity<?> ouvrirLitige(@Parameter(description = "ID de la réservation") @PathVariable Long id,
+                                          @Valid @RequestBody LitigeRequest request,
+                                          @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId) {
 
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un CLIENT
+        if (currentUser.getRole() != Role.CLIENT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux clients"));
+        }
+
+        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à ouvrir un litige pour un autre client"));
+        }
+
+        // 4. Récupérer la réservation
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Réservation non trouvée"));
+        }
+
+        // 5. Vérifier que le client de la réservation correspond bien au client connecté
+        if (!reservation.getClient().getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à ouvrir un litige sur cette réservation"));
+        }
+
+        // 6. Vérifier si un litige existe déjà pour cette réservation
+        if (litigeRepository.existsByReservationId(id)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Un litige existe déjà pour cette réservation"));
+        }
+
+        // 7. Créer et sauvegarder le litige
         Litige litige = new Litige();
         litige.setReservation(reservation);
         litige.setMotif(request.getMotif());
         litige.setStatut("OUVERT");
         litigeRepository.save(litige);
-        return ResponseEntity.status(201).body(litige);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(litige);
     }
 
     // Admin : consulter tous les litiges ouverts
     @GetMapping("/litiges/ouverts")
     @Operation(summary = "Consulter tous les litiges ouverts (admin)")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Liste des litiges ouverts")
+            @ApiResponse(responseCode = "200", description = "Liste des litiges ouverts"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux administrateurs")
     })
-    public ResponseEntity<List<Litige>> getLitigesOuverts() {
-        return ResponseEntity.ok(litigeRepository.findByStatut("OUVERT"));
+    public ResponseEntity<?> getLitigesOuverts() {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un ADMIN
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux administrateurs"));
+        }
+
+        // 3. Récupérer et retourner les litiges ouverts
+        List<Litige> litiges = litigeRepository.findByStatut("OUVERT");
+        return ResponseEntity.ok(litiges);
     }
 
     // Admin : résoudre un litige
@@ -405,15 +537,45 @@ public class ReservationController {
     @Operation(summary = "Résoudre un litige (admin)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Litige résolu"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux administrateurs"),
             @ApiResponse(responseCode = "404", description = "Litige non trouvé")
     })
     public ResponseEntity<?> resoudreLitige(@Parameter(description = "ID du litige") @PathVariable Long litigeId,
                                             @Parameter(description = "Décision de résolution") @RequestParam String resolution) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un ADMIN
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux administrateurs"));
+        }
+
+        // 3. Récupérer le litige
         Litige litige = litigeRepository.findById(litigeId).orElse(null);
-        if (litige == null) return ResponseEntity.notFound().build();
+        if (litige == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Litige non trouvé"));
+        }
+
+        // 4. Vérifier que le litige est encore ouvert (bonne pratique)
+        if (!"OUVERT".equals(litige.getStatut())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Seul un litige ouvert peut être résolu"));
+        }
+
+        // 5. Résoudre le litige
         litige.setStatut("RESOLU");
         litige.setResolution(resolution);
         litigeRepository.save(litige);
+
         return ResponseEntity.ok(litige);
     }
 
@@ -422,23 +584,51 @@ public class ReservationController {
     @Operation(summary = "Simuler un paiement (client)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Paiement simulé avec succès"),
-            @ApiResponse(responseCode = "403", description = "Non autorisé"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (rôle incorrect ou client non autorisé)"),
             @ApiResponse(responseCode = "404", description = "Réservation non trouvée")
     })
     public ResponseEntity<?> simulerPaiement(@Parameter(description = "ID de la réservation") @PathVariable Long id,
                                              @Parameter(description = "Mode de paiement (mobile_money, cash)") @RequestParam String modePaiement,
-                                             @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId)  {
+                                             @Parameter(description = "ID du client pour vérification") @RequestParam Long clientId) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un CLIENT
+        if (currentUser.getRole() != Role.CLIENT) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux clients"));
+        }
+
+        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à effectuer un paiement pour un autre client"));
+        }
+
+        // 4. Récupérer la réservation
         Reservation reservation = reservationRepository.findById(id).orElse(null);
         if (reservation == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Réservation non trouvée"));
         }
+
+        // 5. Vérifier que le client de la réservation correspond bien au client connecté
         if (!reservation.getClient().getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Non autorisé"));
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à payer cette réservation"));
         }
+
+        // 6. Simuler le paiement
         reservation.setStatut("PAYEE");
         reservationRepository.save(reservation);
+
         return ResponseEntity.ok(Map.of("message", "Paiement simulé effectué avec " + modePaiement));
     }
 }
