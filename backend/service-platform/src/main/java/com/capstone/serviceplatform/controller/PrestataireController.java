@@ -1,15 +1,15 @@
 package com.capstone.serviceplatform.controller;
 
-import com.capstone.serviceplatform.entity.Disponibilite;
-import com.capstone.serviceplatform.entity.Prestataire;
-import com.capstone.serviceplatform.entity.Reservation;
+import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.ReservationRepository;
+import com.capstone.serviceplatform.repository.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +39,8 @@ public class PrestataireController {
     private ReservationRepository reservationRepository;
     @Autowired
     private DisponibiliteRepository disponibiliteRepository;
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping("/recherche")
     @Operation(summary = "Recherche publique de prestataires (filtres optionnels)")
@@ -61,25 +63,48 @@ public class PrestataireController {
     @Operation(summary = "Statistiques d'un prestataire (revenus, nombre prestations, note moyenne)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Statistiques retournées"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès interdit (rôle incorrect ou prestataire non autorisé)"),
             @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
     })
     public ResponseEntity<?> getStatistiques(@PathVariable Long id) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+
+        // 2. Vérifier que l'utilisateur existe
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 3. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 4. Vérifier que l'ID dans l'URL correspond à l'ID du prestataire authentifié
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les statistiques d'un autre prestataire"));
+        }
+
+        // 5. Récupérer le prestataire (optionnel, car on a déjà l'utilisateur)
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
-        if (prestataire == null) return ResponseEntity.notFound().build();
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
 
-        // Récupérer les réservations TERMINÉES
+        // --- Logique métier inchangée ---
         List<Reservation> terminees = reservationRepository.findByPrestataireIdAndStatut(id, "TERMINEE");
-
-        // Revenus totaux
         BigDecimal totalRevenus = terminees.stream()
                 .map(Reservation::getMontant)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Nombre de prestations
         int nbPrestations = terminees.size();
-
-        // Note moyenne (déjà dans prestataire.moyenneNotes, mais on peut recalculer)
         Double moyenne = prestataire.getMoyenneNotes() != null ? prestataire.getMoyenneNotes().doubleValue() : 0.0;
 
         Map<String, Object> stats = new HashMap<>();
@@ -95,15 +120,42 @@ public class PrestataireController {
     @Operation(summary = "Ajouter une disponibilité pour un prestataire")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Disponibilité ajoutée"),
-            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé"),
-            @ApiResponse(responseCode = "400", description = "Données invalides")
+            @ApiResponse(responseCode = "400", description = "Données invalides"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès interdit (rôle incorrect ou prestataire non autorisé)"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
     })
     public ResponseEntity<?> ajouterDisponibilite(@Parameter(description = "ID du prestataire") @PathVariable Long id,
                                                   @Valid @RequestBody Disponibilite disponibilite) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 3. Vérifier que l'ID du prestataire dans l'URL correspond à l'ID de l'utilisateur connecté
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à ajouter des disponibilités pour un autre prestataire"));
+        }
+
+        // 4. Récupérer le prestataire (optionnel, car on a déjà l'utilisateur)
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
         if (prestataire == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Prestataire non trouvé"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
         }
+
+        // 5. Créer et sauvegarder la disponibilité
         disponibilite.setPrestataire(prestataire);
         Disponibilite saved = disponibiliteRepository.save(disponibilite);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -114,14 +166,44 @@ public class PrestataireController {
     @Operation(summary = "Lister les disponibilités d'un prestataire")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Liste des disponibilités"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès interdit (rôle incorrect ou prestataire non autorisé)"),
             @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
     })
-    public ResponseEntity<List<Disponibilite>> getDisponibilites(@PathVariable Long id) {
+    public ResponseEntity<?> getDisponibilites(@PathVariable Long id) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+
+        // 2. Vérifier que l'utilisateur existe
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 3. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 4. Vérifier que l'ID dans l'URL correspond à l'ID du prestataire authentifié
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les disponibilités d'un autre prestataire"));
+        }
+
+        // 5. Récupérer le prestataire (optionnel)
         Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
         if (prestataire == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
         }
-        return ResponseEntity.ok(disponibiliteRepository.findByPrestataire(prestataire));
+
+        // --- Logique métier inchangée ---
+        List<Disponibilite> disponibilites = disponibiliteRepository.findByPrestataire(prestataire);
+        return ResponseEntity.ok(disponibilites);
     }
 
     // Supprimer une disponibilité
@@ -129,12 +211,40 @@ public class PrestataireController {
     @Operation(summary = "Supprimer une disponibilité")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Supprimée avec succès"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès interdit (rôle incorrect ou prestataire non autorisé)"),
             @ApiResponse(responseCode = "404", description = "Disponibilité non trouvée")
     })
     public ResponseEntity<?> supprimerDisponibilite(@PathVariable Long disponibiliteId) {
-        if (!disponibiliteRepository.existsById(disponibiliteId)) {
-            return ResponseEntity.notFound().build();
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
         }
+
+        // 2. Vérifier que l'utilisateur est bien un PRESTATAIRE
+        if (currentUser.getRole() != Role.PRESTATAIRE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux prestataires"));
+        }
+
+        // 3. Récupérer la disponibilité pour vérifier son propriétaire
+        Disponibilite disponibilite = disponibiliteRepository.findById(disponibiliteId).orElse(null);
+        if (disponibilite == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Disponibilité non trouvée"));
+        }
+
+        // 4. Vérifier que le prestataire associé à la disponibilité est bien l'utilisateur connecté
+        if (!disponibilite.getPrestataire().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à supprimer cette disponibilité"));
+        }
+
+        // 5. Supprimer la disponibilité
         disponibiliteRepository.deleteById(disponibiliteId);
         return ResponseEntity.noContent().build();
     }
