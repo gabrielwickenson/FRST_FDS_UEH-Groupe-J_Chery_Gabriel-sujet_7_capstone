@@ -1,22 +1,36 @@
 package com.capstone.kolabor.app.ui.auth
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.capstone.serviceplatform.app.ui.theme.Gray500
-import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
+import com.capstone.kolabor.app.data.model.LoginResponse
+import com.capstone.kolabor.app.data.repository.AuthRepository
 import com.kolabor.app.ui.components.KolaborPrimaryButton
 import com.kolabor.app.ui.components.KolaborTextField
-import com.kolabor.app.ui.theme.*
-import kotlinx.coroutines.delay
+import com.capstone.kolabor.app.utils.TokenManager
+import com.capstone.serviceplatform.app.ui.theme.Gray500
+import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
+import com.kolabor.app.ui.theme.space16
+import com.kolabor.app.ui.theme.space24
+import com.kolabor.app.ui.theme.space32
+import com.kolabor.app.ui.theme.space48
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val authRepository = remember { AuthRepository() }
+    val tokenManager = remember { TokenManager(context) }
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -64,16 +78,42 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         KolaborPrimaryButton(
             text = if (isLoading) "Connexion en cours..." else "Se connecter",
             onClick = {
-                isLoading = true
                 if (email.isBlank() || password.isBlank()) {
                     errorMessage = "Email et mot de passe requis"
-                    isLoading = false
-                } else {
-                    // Appel API simulé
-                    // onLoginSuccess()
-                    errorMessage = null
-                    isLoading = false
-                    onLoginSuccess()
+                    return@KolaborPrimaryButton
+                }
+                isLoading = true
+                errorMessage = null
+
+                coroutineScope.launch {
+                    try {
+                        val response = authRepository.login(email, password) // LoginResponse?
+                        if (response != null) {
+                            tokenManager.saveToken(response.token)
+                            // Sauvegarde aussi le rôle si tu le souhaites
+                            onLoginSuccess()
+                        } else {
+                            errorMessage = "Email ou mot de passe incorrect"
+                        }
+                    } catch (e: Exception) {
+                        Log.e("LoginScreen", "Erreur de connexion", e)
+                        errorMessage = "Erreur réseau. Vérifiez votre connexion."
+                    } finally {
+                        isLoading = false
+                    }
+                    try {
+                        Log.d("LoginScreen", "Appel login avec email=$email")
+                        val response = authRepository.login(email, password)
+                        Log.d("LoginScreen", "Réponse reçue: $response")
+                        if (response != null) {
+                            // succès
+                        } else {
+                            errorMessage = "Email ou mot de passe incorrect"
+                        }
+                    } catch (e: Exception) {
+                        Log.e("LoginScreen", "Erreur complète", e)
+                        errorMessage = "Erreur technique: ${e.message}"
+                    }
                 }
             },
             enabled = !isLoading

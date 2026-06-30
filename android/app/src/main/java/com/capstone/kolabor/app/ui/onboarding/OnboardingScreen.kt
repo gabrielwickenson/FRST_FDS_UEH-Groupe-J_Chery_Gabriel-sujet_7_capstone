@@ -18,12 +18,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Payment
-import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
@@ -64,7 +59,7 @@ fun OnboardingScreen(
         OnboardingItem(
             title = "Réservez en toute simplicité",
             description = "Choisissez votre prestataire, fixez la date et l'heure, et validez votre réservation en quelques clics.",
-            icon = Icons.Outlined.CalendarMonth
+            icon = Icons.Outlined.DateRange
         ),
         OnboardingItem(
             title = "Une communauté de confiance",
