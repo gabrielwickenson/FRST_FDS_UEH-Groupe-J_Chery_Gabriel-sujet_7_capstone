@@ -43,7 +43,7 @@ import com.kolabor.app.ui.theme.space8
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit,
+fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
                 onNavigateToRegister: () -> Unit) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -133,20 +133,22 @@ fun LoginScreen(onLoginSuccess: () -> Unit,
 
                 coroutineScope.launch {
                     try {
-                        val response = authRepository.login(email, password) // LoginResponse?
+                        val response = authRepository.login(email, password)
                         if (response != null) {
+                            // Stocker le token et le rôle
                             tokenManager.saveToken(response.token)
-                            // Sauvegarde aussi le rôle si tu le souhaites
-                            onLoginSuccess()
+                            tokenManager.saveUserRole(response.role)
+                            onLoginSuccess(response.role)  // MainActivity lira le rôle depuis TokenManager
                         } else {
                             errorMessage = "Email ou mot de passe incorrect"
                         }
                     } catch (e: Exception) {
-                        Log.e("LoginScreen", "Erreur de connexion", e)
+                        Log.e("LoginScreen", "Erreur", e)
                         errorMessage = "Erreur réseau. Vérifiez votre connexion."
                     } finally {
                         isLoading = false
                     }
+
                     try {
                         Log.d("LoginScreen", "Appel login avec email=$email")
                         val response = authRepository.login(email, password)
