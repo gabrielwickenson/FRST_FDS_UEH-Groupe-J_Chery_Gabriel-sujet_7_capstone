@@ -23,6 +23,7 @@ class AuthRepository {
             RetrofitInstance.api.register(request)
             true
         } catch (e: Exception) {
+            Log.e("AuthRepo", "Erreur inscription", e)
             false
         }
     }

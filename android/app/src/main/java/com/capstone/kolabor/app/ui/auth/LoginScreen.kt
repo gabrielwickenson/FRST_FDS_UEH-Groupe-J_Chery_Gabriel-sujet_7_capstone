@@ -1,31 +1,50 @@
 package com.capstone.kolabor.app.ui.auth
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import android.util.Log
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.capstone.kolabor.app.data.model.LoginResponse
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 import com.capstone.kolabor.app.data.repository.AuthRepository
 import com.kolabor.app.ui.components.KolaborPrimaryButton
 import com.kolabor.app.ui.components.KolaborTextField
 import com.capstone.kolabor.app.utils.TokenManager
+import com.capstone.serviceplatform.app.ui.theme.ErrorColor
 import com.capstone.serviceplatform.app.ui.theme.Gray500
+import com.capstone.serviceplatform.app.ui.theme.NavyLight
 import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
 import com.kolabor.app.ui.theme.space16
 import com.kolabor.app.ui.theme.space24
 import com.kolabor.app.ui.theme.space32
 import com.kolabor.app.ui.theme.space48
+import com.kolabor.app.R
+import com.kolabor.app.ui.theme.space8
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(onLoginSuccess: () -> Unit,
+                onNavigateToRegister: () -> Unit) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val authRepository = remember { AuthRepository() }
@@ -35,6 +54,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) } // ✅ État visibilité
+
 
     Column(
         modifier = Modifier
@@ -42,11 +63,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             .padding(horizontal = space24, vertical = space48),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Kolabor",
-            style = MaterialTheme.typography.displaySmall,
-            color = NavyPrimary
+        Spacer(modifier = Modifier.height(space48))
+        Image(
+            painter = painterResource(id = R.drawable.logo_kolabor_svg),
+            contentDescription = "Logo Kolabor",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp),
+            contentScale = ContentScale.Fit
         )
+        Spacer(modifier = Modifier.height(space8))
         Text(
             text = "Connectez-vous à votre compte",
             style = MaterialTheme.typography.bodyLarge,
@@ -63,16 +89,36 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(space16))
 
-        KolaborTextField(
+        // Champ Mot de passe
+        OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = "Mot de passe",
-            placeholder = "••••••••",
-            visualTransformation = PasswordVisualTransformation(),
+            label = { Text("Mot de passe") },
+            placeholder = { Text("••••••••", color = Gray500) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = NavyPrimary,
+                unfocusedIndicatorColor = NavyLight,
+                focusedLabelColor = NavyPrimary,
+                errorIndicatorColor = ErrorColor
+            ),
+            trailingIcon = {
+                val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = icon, contentDescription = null)
+                }
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             isError = errorMessage != null,
-            errorMessage = errorMessage
+            supportingText = {
+                if (errorMessage != null) {
+                    Text(text = errorMessage!!, color = ErrorColor)
+                }
+            }
         )
+
         Spacer(modifier = Modifier.height(space32))
 
         KolaborPrimaryButton(
@@ -125,6 +171,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = NavyPrimary,
             modifier = Modifier
+                .clickable { onNavigateToRegister() }
         )
     }
 }
