@@ -15,6 +15,7 @@ class TokenManager(private val context: Context) {
     companion object {
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
         private val ROLE_KEY = stringPreferencesKey("user_role")
+        private val USER_ID_KEY = stringPreferencesKey("user_id")
     }
 
     // Sauvegarder le token JWT
@@ -24,17 +25,17 @@ class TokenManager(private val context: Context) {
         }
     }
 
+    //  Récupérer le token de manière synchrone (pour l'intercepteur)
+    suspend fun getToken(): String? {
+        return context.dataStore.data.map { prefs ->
+            prefs[TOKEN_KEY]
+        }.first()
+    }
+
     // Sauvegarder le rôle de l'utilisateur
     suspend fun saveUserRole(role: String) {
         context.dataStore.edit { prefs ->
             prefs[ROLE_KEY] = role
-        }
-    }
-
-    // Récupérer le token (Flow)
-    fun getTokenFlow(): Flow<String?> {
-        return context.dataStore.data.map { prefs ->
-            prefs[TOKEN_KEY]
         }
     }
 
@@ -44,19 +45,26 @@ class TokenManager(private val context: Context) {
             prefs[ROLE_KEY]
         }
     }
+    suspend fun saveUserId(userId: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[USER_ID_KEY] = userId.toString()
+        }
+    }
 
-    // ✅ Récupérer le token de manière synchrone (pour l'intercepteur)
-    suspend fun getToken(): String? {
+    suspend fun getUserId(): Long? {
         return context.dataStore.data.map { prefs ->
-            prefs[TOKEN_KEY]
+            prefs[USER_ID_KEY]?.toLongOrNull()
         }.first()
     }
 
-    // ✅ Effacer toutes les données de session (déconnexion)
+
+    //  Effacer toutes les données de session (déconnexion)
     suspend fun clearSession() {
         context.dataStore.edit { prefs ->
             prefs.remove(TOKEN_KEY)
             prefs.remove(ROLE_KEY)
         }
     }
+
+
 }

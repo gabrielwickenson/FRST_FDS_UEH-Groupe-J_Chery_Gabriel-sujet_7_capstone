@@ -1,19 +1,28 @@
 package com.kolabor.app
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.capstone.kolabor.app.ui.auth.LoginScreen
 import com.capstone.kolabor.app.ui.auth.RegisterScreen
-import com.capstone.kolabor.app.ui.client.SearchScreen  // ✅ import
+import com.capstone.kolabor.app.ui.client.BookScreen
+import com.capstone.kolabor.app.ui.client.ReservationsScreen
+import com.capstone.kolabor.app.ui.client.SearchScreen
 import com.capstone.kolabor.app.ui.dashboard.ClientDashboard
 import com.capstone.kolabor.app.ui.dashboard.PrestataireDashboard
 import com.capstone.kolabor.app.ui.onboarding.OnboardingScreen
 import com.kolabor.app.ui.theme.KolaborTheme
 import com.capstone.kolabor.app.utils.TokenManager
+import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -36,17 +45,26 @@ fun KolaborApp() {
     val showOnboarding = remember { mutableStateOf(true) }
     val showLogin = remember { mutableStateOf(false) }
     val showRegister = remember { mutableStateOf(false) }
-    val showSearch = remember { mutableStateOf(false) }   // ✅ nouvel état
+    val showSearch = remember { mutableStateOf(false) }
+    val showReservations = remember { mutableStateOf(false) }
+    val showBook = remember { mutableStateOf(false) }
+    val selectedPrestataireId = remember { mutableStateOf<Long?>(null) }
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
+    val clientId = remember { mutableStateOf<Long?>(null) }
+    val searchFilter = remember { mutableStateOf<String?>(null)}
 
-    // Vérifier si un token existe déjà au démarrage
+    // Charger la session au démarrage
     LaunchedEffect(Unit) {
         tokenManager.getUserRole().collectLatest { role ->
-            if (role != null && tokenManager.getToken() != null) {
+            val token = tokenManager.getToken()
+            if (role != null && token != null) {
                 userRole.value = role
                 isLoggedIn.value = true
                 showOnboarding.value = false
+                if (role == "CLIENT") {
+                    clientId.value = tokenManager.getUserId() ?: 0L
+                }
             }
         }
     }
@@ -56,26 +74,81 @@ fun KolaborApp() {
             isLoggedIn.value && userRole.value != null -> {
                 when (userRole.value) {
                     "CLIENT" -> {
-                        if (showSearch.value) {
-                            SearchScreen(
-                                onBack = {
-                                    showSearch.value = false
-                                }
-                            )
-                        } else {
-                            ClientDashboard(
-                                onLogout = {
-                                    coroutineScope.launch {
-                                        tokenManager.clearSession()
-                                        isLoggedIn.value = false
-                                        userRole.value = null
-                                        showLogin.value = true
+                        when {
+                            showBook.value && selectedPrestataireId.value != null -> {
+                                BookScreen(
+                                    onBack = {
+                                        showBook.value = false
+                                        selectedPrestataireId.value = null
+                                    },
+                                    onBookingSuccess = {
+                                        showBook.value = false
+                                        selectedPrestataireId.value = null
+                                        Toast.makeText(context, "Réservation réussie !", Toast.LENGTH_LONG).show()
+                                    },
+                                    prestataireId = selectedPrestataireId.value!!,
+                                    clientId = clientId.value ?: 0L
+                                )
+                            }
+                            showSearch.value -> {
+                                SearchScreen(
+                                    onBack = {
+                                        showSearch.value = false
+                                    },
+                                    onNavigateToBook = { prestataireId ->
+                                        selectedPrestataireId.value = prestataireId
+                                        showBook.value = true
+                                    },
+                                    initialService = searchFilter.value
+                                )
+                            }
+                            showReservations.value -> {
+                                if (clientId.value != null && clientId.value != 0L) {
+                                    ReservationsScreen(
+                                        onBack = {
+                                            showReservations.value = false
+                                        },
+                                        clientId = clientId.value!!
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) {
+                                        clientId.value = tokenManager.getUserId()
+                                        if (clientId.value == null || clientId.value == 0L) {
+                                            showReservations.value = false
+                                        }
                                     }
-                                },
-                                onNavigateToSearch = {
-                                    showSearch.value = true
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(color = NavyPrimary)
+                                    }
                                 }
-                            )
+                            }
+                            else -> {
+                                ClientDashboard(
+                                    onLogout = {
+                                        coroutineScope.launch {
+                                            tokenManager.clearSession()
+                                            isLoggedIn.value = false
+                                            userRole.value = null
+                                            clientId.value = null
+                                            showLogin.value = true
+                                        }
+                                    },
+                                    onNavigateToSearch = { filter ->
+                                        searchFilter.value = filter
+                                        showSearch.value = true
+                                    },
+                                    onNavigateToReservations = {
+                                        coroutineScope.launch {
+                                            val id = tokenManager.getUserId()
+                                            clientId.value = id ?: 0L
+                                            showReservations.value = true
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                     "PRESTATAIRE" -> PrestataireDashboard(
@@ -108,6 +181,12 @@ fun KolaborApp() {
                         userRole.value = role
                         isLoggedIn.value = true
                         showLogin.value = false
+                        coroutineScope.launch {
+                            val id = tokenManager.getUserId()
+                            if (id != null && role == "CLIENT") {
+                                clientId.value = id
+                            }
+                        }
                     },
                     onNavigateToRegister = {
                         showLogin.value = false

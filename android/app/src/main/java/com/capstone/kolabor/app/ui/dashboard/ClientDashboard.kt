@@ -9,48 +9,50 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.kolabor.app.R
-import com.capstone.serviceplatform.app.ui.theme.ErrorColor
-import com.capstone.serviceplatform.app.ui.theme.Gray50
-import com.capstone.serviceplatform.app.ui.theme.Gray500
-import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
-import com.kolabor.app.ui.theme.space16
-import com.kolabor.app.ui.theme.space24
-import com.kolabor.app.ui.theme.space32
-import com.kolabor.app.ui.theme.space8
+import com.capstone.kolabor.app.data.model.Service
+import com.capstone.kolabor.app.data.repository.ServiceRepository
+import com.capstone.serviceplatform.app.ui.theme.*
+import com.kolabor.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClientDashboard(onLogout: () -> Unit,
-                    onNavigateToSearch: () -> Unit   // ✅ callback ajouté
+fun ClientDashboard(
+    onLogout: () -> Unit,
+    onNavigateToSearch: (String?) -> Unit,
+    onNavigateToReservations: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val serviceRepo = remember { ServiceRepository(context) }
+
+    var services by remember { mutableStateOf<List<Service>>(emptyList()) }
+    var selectedService by remember { mutableStateOf<String?>(null) }
+
+    // Charger les services
+    LaunchedEffect(Unit) {
+        val data = serviceRepo.getServices()
+        if (data != null) {
+            services = data
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Kolabor",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = NavyPrimary
-                ),
+                title = { Text("Kolabor", color = Color.White, style = MaterialTheme.typography.titleLarge) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
                     IconButton(onClick = onLogout) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Déconnexion",
-                            tint = Color.White
-                        )
+                        Icon(Icons.Default.Person, contentDescription = "Déconnexion", tint = Color.White)
                     }
                 }
             )
@@ -68,47 +70,67 @@ fun ClientDashboard(onLogout: () -> Unit,
             Image(
                 painter = painterResource(id = R.drawable.logo_kolabor_svg),
                 contentDescription = "Logo Kolabor",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
+                modifier = Modifier.fillMaxWidth().height(80.dp),
                 contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.height(space16))
 
-            Text(
-                text = "Bonjour, Client !",
-                style = MaterialTheme.typography.headlineMedium,
-                color = NavyPrimary
-            )
-            Text(
-                text = "Trouvez et gérez vos services en un clin d'œil.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Gray500
-            )
+            Text("Bonjour, Client !", style = MaterialTheme.typography.headlineMedium, color = NavyPrimary)
+            Text("Trouvez et gérez vos services en un clin d'œil.", style = MaterialTheme.typography.bodyLarge, color = Gray500)
             Spacer(modifier = Modifier.height(space32))
 
+            // Chips filtres
+            if (services.isNotEmpty()) {
+                Text("Filtres par service", style = MaterialTheme.typography.labelLarge, color = Gray600)
+                Spacer(modifier = Modifier.height(space8))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(space8)
+                ) {
+                    services.forEach { service ->
+                        FilterChip(
+                            selected = selectedService == service.nom,
+                            onClick = {
+                                selectedService = if (selectedService == service.nom) null else service.nom
+                            },
+                            label = { Text(service.nom) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = NavyPrimary,
+                                selectedLabelColor = Color.White,
+                                disabledSelectedContainerColor = NavyPrimary
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(space16))
+            } else {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = NavyPrimary)
+                Spacer(modifier = Modifier.height(space16))
+            }
+
+            // Actions principales
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Gray50),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(space16),
+                    modifier = Modifier.fillMaxWidth().padding(space16),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // ✅ Utilisation de weight avec l'import explicite
                     DashboardActionCard(
                         icon = Icons.Default.Search,
                         label = "Rechercher",
-                        onClick = onNavigateToSearch,  // ✅ appel du callback
+                        onClick = {
+                            // ✅ On passe le filtre sélectionné
+                            onNavigateToSearch(selectedService)
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     DashboardActionCard(
                         icon = Icons.Default.History,
                         label = "Mes réservations",
-                        onClick = { /* Naviguer vers historique */ },
+                        onClick = onNavigateToReservations,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -119,10 +141,7 @@ fun ClientDashboard(onLogout: () -> Unit,
             Button(
                 onClick = onLogout,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ErrorColor,
-                    contentColor = Color.White
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = ErrorColor, contentColor = Color.White)
             ) {
                 Text("Déconnexion", style = MaterialTheme.typography.labelLarge)
             }
@@ -130,24 +149,22 @@ fun ClientDashboard(onLogout: () -> Unit,
     }
 }
 
+// DashboardActionCard reste inchangé
 @Composable
 fun DashboardActionCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier // ✅ on passe le modificateur weight de la Row
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier
-            .padding(horizontal = space8), // Le weight est maintenant appliqué depuis l'appel
+        modifier = modifier.padding(horizontal = space8),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(space16),
+            modifier = Modifier.fillMaxWidth().padding(space16),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(

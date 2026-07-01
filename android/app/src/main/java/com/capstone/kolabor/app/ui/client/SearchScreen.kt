@@ -1,6 +1,7 @@
 package com.capstone.kolabor.app.ui.client
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,12 +24,15 @@ import com.kolabor.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun SearchScreen(onBack: () -> Unit) {
+fun SearchScreen(onBack: () -> Unit,
+                 onNavigateToBook: (Long) -> Unit,// ✅ nouveau callback
+                 initialService: String? = null
+){
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val repository = remember { PrestataireRepository(context) }
 
-    var service by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf(initialService ?: "") }   // ✅ initialisation
     var zone by remember { mutableStateOf("") }
     var noteMin by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
@@ -58,7 +62,7 @@ fun SearchScreen(onBack: () -> Unit) {
         OutlinedTextField(
             value = service,
             onValueChange = { service = it },
-            label = { Text("Quel trestataire cherchez-vous ?", style = MaterialTheme.typography.bodyMedium) },
+            label = { Text("Quel service cherchez-vous ?", style = MaterialTheme.typography.bodyMedium) },
             placeholder = { Text("Plombier, électricien...", style = MaterialTheme.typography.bodyMedium, color = Gray500) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -198,16 +202,23 @@ fun SearchScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(space8)
         ) {
             items(results) { prestataire ->
-                PrestataireCard(prestataire = prestataire)
+                PrestataireCard(
+                    prestataire = prestataire,
+                    onClick = { onNavigateToBook(prestataire.id) }   // ✅ appel du callback
+                )
             }
         }
     }
 }
 
 @Composable
-fun PrestataireCard(prestataire: Prestataire) {
+fun PrestataireCard(prestataire: Prestataire,
+                    onClick: () -> Unit   // ✅ nouveau paramètre
+){
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },   // ✅ rendre la carte cliquable,
         colors = CardDefaults.cardColors(containerColor = Gray50),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.small

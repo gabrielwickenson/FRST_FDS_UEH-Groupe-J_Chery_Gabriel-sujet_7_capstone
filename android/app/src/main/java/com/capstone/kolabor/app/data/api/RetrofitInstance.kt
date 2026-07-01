@@ -30,7 +30,7 @@ object RetrofitInstance {
 
     fun getApi(context: Context): ApiService {
         val client = OkHttpClient.Builder()
-            .addInterceptor(AuthInterceptor(context))   // ✅ Intercepteur JWT
+            .addInterceptor(AuthInterceptor(context))   // Intercepteur JWT
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             })
