@@ -1,6 +1,6 @@
 package com.capstone.kolabor.app.data.api
 
-import com.capstone.kolabor.app.data.api.ApiService
+import android.content.Context
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import okhttp3.OkHttpClient
@@ -21,6 +21,24 @@ object RetrofitInstance {
 
     val api: ApiService by lazy {
         Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ApiService::class.java)
+    }
+
+    fun getApi(context: Context): ApiService {
+        val client = OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor(context))   // ✅ Intercepteur JWT
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())

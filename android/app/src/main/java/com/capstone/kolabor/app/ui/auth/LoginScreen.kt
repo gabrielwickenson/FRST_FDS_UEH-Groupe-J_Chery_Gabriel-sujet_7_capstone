@@ -47,7 +47,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
                 onNavigateToRegister: () -> Unit) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val authRepository = remember { AuthRepository() }
+    val authRepository = remember { AuthRepository(context) }
     val tokenManager = remember { TokenManager(context) }
 
     var email by remember { mutableStateOf("") }
