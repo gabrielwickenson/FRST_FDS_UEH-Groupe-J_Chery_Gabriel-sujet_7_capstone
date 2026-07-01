@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.capstone.kolabor.app.ui.auth.LoginScreen
 import com.capstone.kolabor.app.ui.auth.RegisterScreen
+import com.capstone.kolabor.app.ui.client.SearchScreen  // ✅ import
 import com.capstone.kolabor.app.ui.dashboard.ClientDashboard
 import com.capstone.kolabor.app.ui.dashboard.PrestataireDashboard
 import com.capstone.kolabor.app.ui.onboarding.OnboardingScreen
@@ -30,11 +31,12 @@ class MainActivity : ComponentActivity() {
 fun KolaborApp() {
     val context = LocalContext.current
     val tokenManager = remember { TokenManager(context) }
-    val coroutineScope = rememberCoroutineScope() // ✅ Pour lancer des coroutines
+    val coroutineScope = rememberCoroutineScope()
 
     val showOnboarding = remember { mutableStateOf(true) }
     val showLogin = remember { mutableStateOf(false) }
     val showRegister = remember { mutableStateOf(false) }
+    val showSearch = remember { mutableStateOf(false) }   // ✅ nouvel état
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
 
@@ -53,17 +55,29 @@ fun KolaborApp() {
         when {
             isLoggedIn.value && userRole.value != null -> {
                 when (userRole.value) {
-                    "CLIENT" -> ClientDashboard(
-                        onLogout = {
-                            // ✅ Lancer la coroutine pour clearSession
-                            coroutineScope.launch {
-                                tokenManager.clearSession()
-                                isLoggedIn.value = false
-                                userRole.value = null
-                                showLogin.value = true
-                            }
+                    "CLIENT" -> {
+                        if (showSearch.value) {
+                            SearchScreen(
+                                onBack = {
+                                    showSearch.value = false
+                                }
+                            )
+                        } else {
+                            ClientDashboard(
+                                onLogout = {
+                                    coroutineScope.launch {
+                                        tokenManager.clearSession()
+                                        isLoggedIn.value = false
+                                        userRole.value = null
+                                        showLogin.value = true
+                                    }
+                                },
+                                onNavigateToSearch = {
+                                    showSearch.value = true
+                                }
+                            )
                         }
-                    )
+                    }
                     "PRESTATAIRE" -> PrestataireDashboard(
                         onLogout = {
                             coroutineScope.launch {

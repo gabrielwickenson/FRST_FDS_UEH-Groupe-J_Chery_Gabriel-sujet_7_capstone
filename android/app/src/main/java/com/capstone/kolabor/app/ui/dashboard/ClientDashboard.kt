@@ -28,7 +28,9 @@ import com.kolabor.app.ui.theme.space8
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClientDashboard(onLogout: () -> Unit) {
+fun ClientDashboard(onLogout: () -> Unit,
+                    onNavigateToSearch: () -> Unit   // ✅ callback ajouté
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -100,7 +102,7 @@ fun ClientDashboard(onLogout: () -> Unit) {
                     DashboardActionCard(
                         icon = Icons.Default.Search,
                         label = "Rechercher",
-                        onClick = { /* Naviguer vers recherche */ },
+                        onClick = onNavigateToSearch,  // ✅ appel du callback
                         modifier = Modifier.weight(1f)
                     )
                     DashboardActionCard(
