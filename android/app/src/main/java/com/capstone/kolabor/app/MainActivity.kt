@@ -5,24 +5,16 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.capstone.kolabor.app.ui.auth.LoginScreen
 import com.capstone.kolabor.app.ui.auth.RegisterScreen
 import com.capstone.kolabor.app.ui.client.BookScreen
-import com.capstone.kolabor.app.ui.client.ReservationsScreen
-import com.capstone.kolabor.app.ui.client.SearchScreen
 import com.capstone.kolabor.app.ui.dashboard.ClientDashboard
 import com.capstone.kolabor.app.ui.dashboard.PrestataireDashboard
 import com.capstone.kolabor.app.ui.onboarding.OnboardingScreen
 import com.kolabor.app.ui.theme.KolaborTheme
 import com.capstone.kolabor.app.utils.TokenManager
-import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -45,14 +37,11 @@ fun KolaborApp() {
     val showOnboarding = remember { mutableStateOf(true) }
     val showLogin = remember { mutableStateOf(false) }
     val showRegister = remember { mutableStateOf(false) }
-    val showSearch = remember { mutableStateOf(false) }
-    val showReservations = remember { mutableStateOf(false) }
     val showBook = remember { mutableStateOf(false) }
     val selectedPrestataireId = remember { mutableStateOf<Long?>(null) }
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
     val clientId = remember { mutableStateOf<Long?>(null) }
-    val searchFilter = remember { mutableStateOf<String?>(null)}
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
@@ -90,41 +79,6 @@ fun KolaborApp() {
                                     clientId = clientId.value ?: 0L
                                 )
                             }
-                            showSearch.value -> {
-                                SearchScreen(
-                                    onBack = {
-                                        showSearch.value = false
-                                    },
-                                    onNavigateToBook = { prestataireId ->
-                                        selectedPrestataireId.value = prestataireId
-                                        showBook.value = true
-                                    },
-                                    initialService = searchFilter.value
-                                )
-                            }
-                            showReservations.value -> {
-                                if (clientId.value != null && clientId.value != 0L) {
-                                    ReservationsScreen(
-                                        onBack = {
-                                            showReservations.value = false
-                                        },
-                                        clientId = clientId.value!!
-                                    )
-                                } else {
-                                    LaunchedEffect(Unit) {
-                                        clientId.value = tokenManager.getUserId()
-                                        if (clientId.value == null || clientId.value == 0L) {
-                                            showReservations.value = false
-                                        }
-                                    }
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(color = NavyPrimary)
-                                    }
-                                }
-                            }
                             else -> {
                                 ClientDashboard(
                                     onLogout = {
@@ -136,16 +90,10 @@ fun KolaborApp() {
                                             showLogin.value = true
                                         }
                                     },
-                                    onNavigateToSearch = { filter ->
-                                        searchFilter.value = filter
-                                        showSearch.value = true
-                                    },
-                                    onNavigateToReservations = {
-                                        coroutineScope.launch {
-                                            val id = tokenManager.getUserId()
-                                            clientId.value = id ?: 0L
-                                            showReservations.value = true
-                                        }
+                                    clientId = clientId.value ?: 0L,
+                                    onNavigateToBook = { prestataireId ->
+                                        selectedPrestataireId.value = prestataireId
+                                        showBook.value = true
                                     }
                                 )
                             }
