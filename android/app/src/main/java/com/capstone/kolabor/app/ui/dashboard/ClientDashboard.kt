@@ -29,6 +29,9 @@ import com.capstone.kolabor.app.data.repository.ServiceRepository
 import com.capstone.kolabor.app.ui.client.PrestataireCard
 import com.capstone.kolabor.app.ui.client.ReservationsScreen
 import com.capstone.kolabor.app.ui.client.SearchScreen
+import com.capstone.kolabor.app.ui.client.formatDate
+import com.capstone.kolabor.app.data.model.Reservation
+import com.capstone.kolabor.app.data.repository.ReservationRepository
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.kolabor.app.ui.theme.*
 
@@ -43,10 +46,10 @@ fun ClientDashboard(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val serviceRepo = remember { ServiceRepository(context) }
-
     var selectedTab by remember { mutableStateOf(0) }
-
     var services by remember { mutableStateOf<List<Service>>(emptyList()) }
+    var totalReservations by remember { mutableStateOf(0) }
+
     LaunchedEffect(Unit) {
         val data = serviceRepo.getServices()
         if (data != null) {
@@ -94,12 +97,49 @@ fun ClientDashboard(
                     Icons.Filled.History,
                     Icons.Filled.Person
                 )
+
                 tabs.forEachIndexed { index, title ->
                     NavigationBarItem(
-                        icon = { Icon(icons[index], contentDescription = title, modifier = Modifier.size(24.dp)) },
-                        label = { Text(title, style = MaterialTheme.typography.labelMedium) },
+                        icon = {
+                            // ✅ BADGE SUR L'ICONE "RÉSERVATIONS"
+                            if (index == 2 && totalReservations > 0) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge(
+                                            containerColor = ErrorColor,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(
+                                                text = if (totalReservations > 99) "99+" else totalReservations.toString(),
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        icons[index],
+                                        contentDescription = title,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    icons[index],
+                                    contentDescription = title,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        },
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            selectedTab = index
+                        },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NavyPrimary,
                             selectedTextColor = NavyPrimary,
@@ -114,20 +154,49 @@ fun ClientDashboard(
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             when (selectedTab) {
                 0 -> {
-                    // 🏠 ONGLET ACCUEIL – LISTE DES PRESTATAIRES
+                    // 🏠 ONGLET ACCUEIL – DASHBOARD CLIENT
                     var searchQuery by remember { mutableStateOf("") }
                     var prestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
                     var isLoadingPrestataires by remember { mutableStateOf(true) }
                     val prestataireRepo = remember { PrestataireRepository(context) }
 
-                    // Charger les prestataires
+                    // États pour la prochaine intervention
+                    var nextReservation by remember { mutableStateOf<Reservation?>(null) }
+                    var isLoadingNextReservation by remember { mutableStateOf(true) }
+                    val reservationRepo = remember { ReservationRepository(context) }
+
+                    // États pour les statistiques
+                    var totalCount by remember { mutableStateOf(0) }
+                    var activeCount by remember { mutableStateOf(0) }
+                    var completedCount by remember { mutableStateOf(0) }
+
+                    // Chargement des données
                     LaunchedEffect(Unit) {
+                        // Charger les prestataires
                         isLoadingPrestataires = true
                         val data = prestataireRepo.searchPrestataires(service = null, noteMin = null, zone = null)
                         if (data != null) {
                             prestataires = data
                         }
                         isLoadingPrestataires = false
+
+                        // Charger les réservations (stats + prochaine)
+                        isLoadingNextReservation = true
+                        val reservations = reservationRepo.getReservationsByClient(clientId)
+                        if (reservations != null) {
+                            // Statistiques
+                            totalCount = reservations.size
+                            activeCount = reservations.count { it.statut == "ACCEPTEE" || it.statut == "EN_COURS" }
+                            completedCount = reservations.count { it.statut == "TERMINEE" }
+                            totalReservations = reservations.size // ✅ AJOUTE CETTE LIGNE
+
+                            // Prochaine intervention
+                            val active = reservations.filter {
+                                it.statut == "ACCEPTEE" || it.statut == "EN_COURS"
+                            }.sortedBy { it.dateHeure }
+                            nextReservation = active.firstOrNull()
+                        }
+                        isLoadingNextReservation = false
                     }
 
                     // Filtrer les prestataires
@@ -157,20 +226,20 @@ fun ClientDashboard(
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Message de bienvenue
+                        // --- 1. Message de bienvenue ---
                         Text(
-                            text = "Bienvenue, $userName ",
+                            text = "Bonjour, $userName !",
                             style = MaterialTheme.typography.headlineMedium,
                             color = NavyPrimary
                         )
                         Text(
                             text = "Trouvez et gérez vos services en un clin d'œil.",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = Gray500
+                            color = NavyPrimary
                         )
                         Spacer(modifier = Modifier.height(space24))
 
-                        // ✅ 1. CHAMP DE RECHERCHE (maintenant en premier)
+                        // --- 4. Champ de recherche ---
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
@@ -202,7 +271,68 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // ✅ 2. CHIPS DE FILTRE RAPIDE (maintenant en second)
+                        // --- 2. Prochaine intervention ---
+                        if (isLoadingNextReservation) {
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
+                            Spacer(modifier = Modifier.height(space16))
+                        } else if (nextReservation != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = GreenLightest),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Column(modifier = Modifier.padding(space16)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "📅 Votre prochaine intervention",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = GreenPrimary
+                                        )
+                                        Text(
+                                            text = nextReservation!!.statut?.replace("_", " ") ?: "",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = when (nextReservation!!.statut) {
+                                                "ACCEPTEE" -> GreenPrimary
+                                                "EN_COURS" -> NavyPrimary
+                                                else -> Gray500
+                                            }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(space8))
+                                    Text(
+                                        text = "${nextReservation!!.service?.nom ?: "Service"} avec ${nextReservation!!.prestataire?.nom ?: "prestataire"}",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = NavyPrimary
+                                    )
+                                    Text(
+                                        text = "📍 ${nextReservation!!.adresse ?: "Adresse non spécifiée"}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Gray600
+                                    )
+                                    Text(
+                                        text = "🕒 ${formatDate(nextReservation!!.dateHeure)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Gray600
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space16))
+                        } else {
+                            Text(
+                                text = "Aucune intervention à venir. Trouvez un prestataire !",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Gray500
+                            )
+                            Spacer(modifier = Modifier.height(space16))
+                        }
+
+
+
+                        // --- 5. Chips de filtres rapides ---
                         if (services.isNotEmpty()) {
                             Text(
                                 "Filtres rapides",
@@ -235,7 +365,7 @@ fun ClientDashboard(
                             Spacer(modifier = Modifier.height(space24))
                         }
 
-                        // 📋 Liste des prestataires (inchangée)
+                        // --- 6. Liste des prestataires ---
                         if (isLoadingPrestataires) {
                             CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
                             Spacer(modifier = Modifier.height(space16))
@@ -301,8 +431,40 @@ fun ClientDashboard(
     }
 }
 
+@Composable
+fun StatCard(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier   // ✅ paramètre ajouté
+) {
+    Card(
+        modifier = modifier,  // ✅ le modifier est appliqué ici
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = space12, horizontal = space8),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                color = color
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray500
+            )
+        }
+    }
+}
 
-// ✅ Composant ServiceGridItem (défini ici)
+//  Composant ServiceGridItem (défini ici)
 @Composable
 fun ServiceGridItem(service: Service, onClick: () -> Unit) {
     Card(
