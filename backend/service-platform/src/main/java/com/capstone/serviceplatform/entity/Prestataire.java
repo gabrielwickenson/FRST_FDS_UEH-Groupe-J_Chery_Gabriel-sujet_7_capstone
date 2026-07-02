@@ -1,6 +1,8 @@
 package com.capstone.serviceplatform.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Formula;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -11,8 +13,18 @@ public class Prestataire extends User {
     private BigDecimal tarifHoraire;
     private String zoneIntervention;
     private BigDecimal moyenneNotes;
+    @Formula("(SELECT COUNT(*) FROM avis a JOIN reservation r ON a.reservation_id = r.id WHERE r.prestataire_id = id)")
+    private int nombreAvis;
 
     // getters et setters
+    public int getNombreAvis() {
+        return nombreAvis;
+    }
+
+    public void setNombreAvis(int nombreAvis) {
+        this.nombreAvis = nombreAvis;
+    }
+
     public String getCompetences() {
         return competences;
     }
