@@ -42,6 +42,7 @@ fun KolaborApp() {
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
     val clientId = remember { mutableStateOf<Long?>(null) }
+    val userName = remember { mutableStateOf<String?>(null) }
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
@@ -53,6 +54,7 @@ fun KolaborApp() {
                 showOnboarding.value = false
                 if (role == "CLIENT") {
                     clientId.value = tokenManager.getUserId() ?: 0L
+                    userName.value = tokenManager.getUserName() // ✅ récupérer le nom
                 }
             }
         }
@@ -94,7 +96,8 @@ fun KolaborApp() {
                                     onNavigateToBook = { prestataireId ->
                                         selectedPrestataireId.value = prestataireId
                                         showBook.value = true
-                                    }
+                                    },
+                                    userName = userName.value ?: "Client"   // ✅ fallback
                                 )
                             }
                         }

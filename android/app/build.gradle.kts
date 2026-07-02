@@ -84,6 +84,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.androidx.espresso.core)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.foundation)
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 

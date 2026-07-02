@@ -62,7 +62,7 @@ fun SearchScreen(onBack: () -> Unit,
         OutlinedTextField(
             value = service,
             onValueChange = { service = it },
-            label = { Text("Quel service cherchez-vous ?", style = MaterialTheme.typography.bodyMedium) },
+            label = { Text("Quel prestataire cherchez-vous ?", style = MaterialTheme.typography.bodyMedium) },
             placeholder = { Text("Plombier, électricien...", style = MaterialTheme.typography.bodyMedium, color = Gray500) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,

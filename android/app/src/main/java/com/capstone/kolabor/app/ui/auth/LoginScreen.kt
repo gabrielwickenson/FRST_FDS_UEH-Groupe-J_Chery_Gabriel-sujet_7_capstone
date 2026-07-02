@@ -139,6 +139,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
                             tokenManager.saveToken(response.token)
                             tokenManager.saveUserRole(response.role)
                             tokenManager.saveUserId(response.id)
+                            tokenManager.saveUserName(response.nom)
                             onLoginSuccess(response.role)  // MainActivity lira le rôle depuis TokenManager
                         } else {
                             errorMessage = "Email ou mot de passe incorrect"

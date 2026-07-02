@@ -16,6 +16,7 @@ class TokenManager(private val context: Context) {
         private val TOKEN_KEY = stringPreferencesKey("jwt_token")
         private val ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
+        private val NAME_KEY = stringPreferencesKey("user_name")
     }
 
     // Sauvegarder le token JWT
@@ -57,6 +58,17 @@ class TokenManager(private val context: Context) {
         }.first()
     }
 
+    suspend fun saveUserName(name: String) {
+        context.dataStore.edit { prefs ->
+            prefs[NAME_KEY] = name
+        }
+    }
+
+    suspend fun getUserName(): String? {
+        return context.dataStore.data.map { prefs ->
+            prefs[NAME_KEY]
+        }.first()
+    }
 
     //  Effacer toutes les données de session (déconnexion)
     suspend fun clearSession() {
