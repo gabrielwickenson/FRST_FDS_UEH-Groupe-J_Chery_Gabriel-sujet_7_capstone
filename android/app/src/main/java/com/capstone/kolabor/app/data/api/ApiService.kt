@@ -1,5 +1,7 @@
 package com.capstone.kolabor.app.data.api
 
+import com.capstone.kolabor.app.data.model.Avis
+import com.capstone.kolabor.app.data.model.Disponibilite
 import com.capstone.kolabor.app.data.model.LoginRequest
 import com.capstone.kolabor.app.data.model.LoginResponse
 import com.capstone.kolabor.app.data.model.Prestataire
@@ -37,6 +39,12 @@ interface ApiService {
 
     @GET("/api/services")
     suspend fun getServices(): List<Service>
+
+    @GET("/api/prestataires/{id}/disponibilites")
+    suspend fun getDisponibilites(@Path("id") id: Long): List<Disponibilite>
+
+    @GET("/api/reservations/{id}/avis")
+    suspend fun getAvisByPrestataire(@Path("id") id: Long): List<Avis>
 
 
 }

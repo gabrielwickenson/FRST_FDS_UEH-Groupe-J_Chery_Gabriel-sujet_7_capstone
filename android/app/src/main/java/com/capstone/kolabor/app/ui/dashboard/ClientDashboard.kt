@@ -1,11 +1,22 @@
 package com.capstone.kolabor.app.ui.dashboard
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import kotlin.collections.filter
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -34,6 +45,7 @@ import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.repository.ReservationRepository
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.kolabor.app.ui.theme.*
+import java.math.BigDecimal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +53,9 @@ fun ClientDashboard(
     onLogout: () -> Unit,
     clientId: Long,
     onNavigateToBook: (Long) -> Unit,
-    userName: String = "Client"   // ✅ nouveau paramètre
+    userName: String = "Client",   // ✅ nouveau paramètre
+    showPrestataireDetail: MutableState<Boolean>,
+    selectedPrestataire: MutableState<Prestataire?>
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -49,6 +63,7 @@ fun ClientDashboard(
     var selectedTab by remember { mutableStateOf(0) }
     var services by remember { mutableStateOf<List<Service>>(emptyList()) }
     var totalReservations by remember { mutableStateOf(0) }
+    val prestataireRepo = remember { PrestataireRepository(context) }
 
     LaunchedEffect(Unit) {
         val data = serviceRepo.getServices()
@@ -90,7 +105,7 @@ fun ClientDashboard(
                 containerColor = Color.White,
                 tonalElevation = 8.dp
             ) {
-                val tabs = listOf("Accueil", "Services", "Réservations", "Profil")
+                val tabs = listOf("Accueil", "Explorer", "Mes réservations", "Profil")
                 val icons = listOf(
                     Icons.Filled.Home,
                     Icons.Filled.Search,
@@ -170,6 +185,10 @@ fun ClientDashboard(
                     var activeCount by remember { mutableStateOf(0) }
                     var completedCount by remember { mutableStateOf(0) }
 
+                    // État pour les prestataires recommandés
+                    var topPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
+                    var isLoadingTop by remember { mutableStateOf(true) }
+
                     // Chargement des données
                     LaunchedEffect(Unit) {
                         // Charger les prestataires
@@ -197,6 +216,19 @@ fun ClientDashboard(
                             nextReservation = active.firstOrNull()
                         }
                         isLoadingNextReservation = false
+
+                        // Charger les prestataires recommandés (note >= 4.0)
+                        isLoadingTop = true
+                        val topData = prestataireRepo.searchPrestataires(service = null, noteMin = 4.0, zone = null)
+                        if (topData != null) {
+                            // Trier par note décroissante et prendre les 5 premiers
+                            val minNote = BigDecimal.valueOf(4.0)   // ✅ conversion en BigDecimal
+                            topPrestataires = topData
+                                .filter { it.moyenneNotes != null && it.moyenneNotes!! >= minNote }
+                                .sortedByDescending { it.moyenneNotes }
+                                .take(5)
+                        }
+                        isLoadingTop = false
                     }
 
                     // Filtrer les prestataires
@@ -229,7 +261,7 @@ fun ClientDashboard(
                         // --- 1. Message de bienvenue ---
                         Text(
                             text = "Bonjour, $userName !",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.headlineSmall,
                             color = NavyPrimary
                         )
                         Text(
@@ -289,7 +321,7 @@ fun ClientDashboard(
                                     ) {
                                         Text(
                                             text = "📅 Votre prochaine intervention",
-                                            style = MaterialTheme.typography.titleMedium,
+                                            style = MaterialTheme.typography.titleSmall,
                                             color = GreenPrimary
                                         )
                                         Text(
@@ -321,6 +353,36 @@ fun ClientDashboard(
                                 }
                             }
                             Spacer(modifier = Modifier.height(space16))
+                            // --- 3. Prestataires recommandés (Top notes) ---
+                            if (isLoadingTop) {
+                                CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
+                                Spacer(modifier = Modifier.height(space16))
+                            } else if (topPrestataires.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "⭐ Prestataires recommandés",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Gray600,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(space8))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(space8)
+                                    ) {
+                                        items(topPrestataires) { prestataire ->
+                                            CompactPrestataireCard(
+                                                prestataire = prestataire,
+                                                onClick = {
+                                                    onNavigateToBook(prestataire.id)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(space16))
+                            }
                         } else {
                             Text(
                                 text = "Aucune intervention à venir. Trouvez un prestataire !",
@@ -398,24 +460,169 @@ fun ClientDashboard(
                                     PrestataireCard(
                                         prestataire = prestataire,
                                         onClick = {
-                                            onNavigateToBook(prestataire.id)
+                                            selectedPrestataire.value = prestataire   // ✅ Nouveau
+                                            showPrestataireDetail.value = true        // ✅ Nouveau
                                         }
                                     )
                                 }
                             }
                             Spacer(modifier = Modifier.height(space16))
                         }
-
-                        Spacer(modifier = Modifier.height(space32))
                         Text("© 2026 Kolabor", style = MaterialTheme.typography.bodySmall, color = Gray500)
                     }
                 }
                 1 -> {
-                    SearchScreen(
-                        onBack = { selectedTab = 0 },
-                        onNavigateToBook = onNavigateToBook,
-                        initialService = selectedServiceFilter
-                    )
+                    // 🔍 ONGLET EXPLORER – GRID CATÉGORIES + RÉSULTATS AVEC PHOTO
+                    var selectedCategory by remember { mutableStateOf<String?>(null) }
+                    var searchQueryExplorer by remember { mutableStateOf("") }
+                    var filteredPrestatairesExplorer by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
+                    var isLoadingExplorer by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(selectedCategory, searchQueryExplorer) {
+                        isLoadingExplorer = true
+                        val data = prestataireRepo.searchPrestataires(
+                            service = selectedCategory,
+                            noteMin = null,
+                            zone = null
+                        )
+                        if (data != null) {
+                            filteredPrestatairesExplorer = if (searchQueryExplorer.isNotBlank()) {
+                                data.filter {
+                                    it.nom.contains(searchQueryExplorer, ignoreCase = true) ||
+                                            (it.competences?.contains(searchQueryExplorer, ignoreCase = true) == true) ||
+                                            (it.zoneIntervention?.contains(searchQueryExplorer, ignoreCase = true) == true)
+                                }
+                            } else {
+                                data
+                            }
+                        } else {
+                            filteredPrestatairesExplorer = emptyList()
+                        }
+                        isLoadingExplorer = false
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = space24, vertical = space24)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = "Explorer",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = NavyPrimary
+                        )
+                        Spacer(modifier = Modifier.height(space8))
+                        Text(
+                            text = "Parcourez par catégorie",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Gray500
+                        )
+                        Spacer(modifier = Modifier.height(space16))
+
+                        // Champ de recherche
+                        OutlinedTextField(
+                            value = searchQueryExplorer,
+                            onValueChange = { searchQueryExplorer = it },
+                            label = { Text("Rechercher un prestataire") },
+                            placeholder = { Text("Nom, compétence...", color = Gray500) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = NavyLight
+                                )
+                            },
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = NavyPrimary,
+                                unfocusedIndicatorColor = NavyLight,
+                                focusedLabelColor = NavyPrimary,
+                                unfocusedLabelColor = Gray600,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedTextColor = Gray900,
+                                unfocusedTextColor = Gray900,
+                                errorIndicatorColor = ErrorColor,
+                                errorLabelColor = ErrorColor
+                            ),
+                            shape = MaterialTheme.shapes.small,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                        )
+                        Spacer(modifier = Modifier.height(space16))
+
+                        // Grille des catégories
+                        if (services.isNotEmpty()) {
+                            Text(
+                                "Catégories",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Gray600,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(space8))
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(4),
+                                horizontalArrangement = Arrangement.spacedBy(space8),
+                                verticalArrangement = Arrangement.spacedBy(space8),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                            ) {
+                                items(services) { service ->
+                                    CategoryCard(
+                                        service = service,
+                                        isSelected = selectedCategory == service.nom,
+                                        onClick = {
+                                            selectedCategory = if (selectedCategory == service.nom) null else service.nom
+                                        }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space24))
+                        }
+
+                        // Résultats des prestataires avec photo, nom, note, tarif
+                        if (isLoadingExplorer) {
+                            CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
+                            Spacer(modifier = Modifier.height(space16))
+                        } else if (filteredPrestatairesExplorer.isEmpty()) {
+                            Text(
+                                text = "Aucun prestataire trouvé",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Gray500
+                            )
+                            Spacer(modifier = Modifier.height(space16))
+                        } else {
+                            Text(
+                                text = "Prestataires disponibles (${filteredPrestatairesExplorer.size})",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Gray600,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(space8))
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                horizontalArrangement = Arrangement.spacedBy(space8),
+                                verticalArrangement = Arrangement.spacedBy(space8),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(350.dp)
+                            ) {
+                                items(filteredPrestatairesExplorer) { prestataire ->
+                                    ExplorerPrestataireCard(
+                                        prestataire = prestataire,
+                                        onClick = {
+                                            selectedPrestataire.value = prestataire   // ✅ Nouveau
+                                            showPrestataireDetail.value = true        // ✅ Nouveau
+                                        }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space16))
+                        }
+                    }
                 }
                 2 -> {
                     ReservationsScreen(
@@ -542,6 +749,222 @@ fun ProfileScreen(onLogout: () -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = ErrorColor, contentColor = Color.White)
         ) {
             Text("Déconnexion", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+fun ExplorerPrestataireCard(
+    prestataire: Prestataire,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(space8),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Photo (placeholder si non disponible)
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(NavyLight.copy(alpha = 0.3f))
+            ) {
+                if (prestataire.photo != null) {
+                    // Si vous avez des photos réelles, chargez-les avec Coil/Glide
+                    // Pour l'instant, on met une icône
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(space4))
+            Text(
+                text = prestataire.nom,
+                style = MaterialTheme.typography.titleMedium,
+                color = NavyPrimary,
+                maxLines = 1
+            )
+            // Note (étoiles)
+            Row {
+                repeat(5) { index ->
+                    Icon(
+                        imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                            Icons.Filled.Star
+                        else
+                            Icons.Outlined.Star,
+                        contentDescription = null,
+                        tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                            GreenPrimary else Gray300,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Text(
+                    text = " ${prestataire.moyenneNotes?.toString() ?: "N/A"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray600
+                )
+            }
+            Text(
+                text = "Tarif: ${prestataire.tarifHoraire?.toString() ?: "N/A"} Gdes/h",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray600
+            )
+            Text(
+                text = prestataire.competences?.take(15) ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray500,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryCard(
+    service: Service,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) NavyPrimary else Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 2.dp),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = service.nom,
+                tint = if (isSelected) Color.White else NavyPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = service.nom,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isSelected) Color.White else Gray600,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+fun CompactPrestataireCard(
+    prestataire: Prestataire,
+    onClick: () -> Unit
+) {
+    // Extraire le premier service de la liste des compétences
+    val mainService = prestataire.competences?.split(",")?.firstOrNull()?.trim() ?: "Service non spécifié"
+
+    Card(
+        modifier = Modifier
+            .width(180.dp)
+            .height(180.dp) // 🔼 Légèrement plus grand pour tout afficher
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(space12),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 📸 Photo (placeholder)
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(NavyLight.copy(alpha = 0.3f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = NavyPrimary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(space8))
+
+            // 📝 Nom
+            Text(
+                text = prestataire.nom,
+                style = MaterialTheme.typography.titleSmall, // taille ajustée
+                color = NavyPrimary,
+                maxLines = 1
+            )
+
+            // 🛠 Service principal
+            Text(
+                text = mainService,
+                style = MaterialTheme.typography.labelMedium,
+                color = Gray600,
+                maxLines = 1
+            )
+
+            // 📍 Zone d'intervention
+            Text(
+                text = prestataire.zoneIntervention ?: "Zone non spécifiée",
+                style = MaterialTheme.typography.labelSmall,
+                color = Gray500,
+                maxLines = 1
+            )
+
+            Spacer(modifier = Modifier.height(space4))
+
+            // ⭐ Nombre d'étoiles + Nombre d'avis
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Afficher les 5 étoiles (remplies selon la moyenne)
+                val note = prestataire.moyenneNotes?.toInt() ?: 0
+                repeat(5) { index ->
+                    Icon(
+                        imageVector = if (index < note) Icons.Filled.Star else Icons.Outlined.Star,
+                        contentDescription = null,
+                        tint = if (index < note) GreenPrimary else Gray300,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                // Nombre d'avis
+                Text(
+                    text = " (${prestataire.nombreAvis})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Gray500
+                )
+            }
         }
     }
 }
