@@ -12,5 +12,6 @@ data class Prestataire(
     val competences: String?,
     @SerializedName("tarifHoraire") val tarifHoraire: BigDecimal?,
     val zoneIntervention: String?,
-    val moyenneNotes: BigDecimal?
+    val moyenneNotes: BigDecimal?,
+    @SerializedName("nombreAvis") val nombreAvis: Int = 0
 )
