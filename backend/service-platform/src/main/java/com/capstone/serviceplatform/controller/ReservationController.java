@@ -440,6 +440,17 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(avis);
     }
 
+    @GetMapping("/{id}/avis")
+    @Operation(summary = "Récupérer tous les avis d'un prestataire")
+    public ResponseEntity<List<Avis>> getAvisByPrestataire(@PathVariable Long id) {
+        // Vérifier que le prestataire existe
+        if (!prestataireRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        List<Avis> avis = avisRepository.findByReservationPrestataireId(id);
+        return ResponseEntity.ok(avis);
+    }
+    
     // -------------------- LITIGES --------------------
     @PostMapping("/{id}/litige")
     @Operation(summary = "Ouvrir un litige (client)")
