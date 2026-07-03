@@ -64,6 +64,9 @@ fun KolaborApp() {
     val showBookingBottomSheet = remember { mutableStateOf(false) }
     val selectedPrestataireForBooking = remember { mutableStateOf<Prestataire?>(null) }
 
+    // Ajoutez cette ligne avec les autres états
+    val clientTab = remember { mutableStateOf(0) }
+
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
         tokenManager.getUserRole().collectLatest { role ->
@@ -121,7 +124,8 @@ fun KolaborApp() {
                                             // Ici on va simplement ouvrir le détail avec un prestataire factice (à améliorer)
                                         },
                                         showPrestataireDetail = showPrestataireDetail,
-                                        selectedPrestataire = selectedPrestataire
+                                        selectedPrestataire = selectedPrestataire,
+
                                     )
                                 }
                             }

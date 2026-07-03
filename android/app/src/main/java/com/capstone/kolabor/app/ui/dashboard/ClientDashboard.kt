@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +49,8 @@ import com.capstone.kolabor.app.data.repository.ReservationRepository
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.kolabor.app.ui.theme.*
 import java.math.BigDecimal
+import com.capstone.kolabor.app.data.model.FilterOptions
+import com.capstone.kolabor.app.ui.client.FilterBottomSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -472,30 +477,62 @@ fun ClientDashboard(
                     }
                 }
                 1 -> {
-                    // 🔍 ONGLET EXPLORER – GRID CATÉGORIES + RÉSULTATS AVEC PHOTO
-                    var selectedCategory by remember { mutableStateOf<String?>(null) }
+                    // 🔍 ONGLET EXPLORER – SANS CATÉGORIES
                     var searchQueryExplorer by remember { mutableStateOf("") }
                     var filteredPrestatairesExplorer by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
                     var isLoadingExplorer by remember { mutableStateOf(false) }
+                    var isGridView by remember { mutableStateOf(true) }
+                    var showFilters by remember { mutableStateOf(false) }
+                    var filterOptions by remember { mutableStateOf<FilterOptions>(FilterOptions()) }
+                    var sortOption by remember { mutableStateOf("Par défaut") }
+                    val sortOptions = listOf("Par défaut", "Note (croissante)", "Note (décroissante)", "Prix (croissant)", "Prix (décroissant)")
+                    var showSortDropdown by remember { mutableStateOf(false) }
+                    var selectedCategory by remember { mutableStateOf<String?>(null) }
+                    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+                    var showSuggestions by remember { mutableStateOf(false) }
+                    var allPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) } // ✅ AJOUT
 
-                    LaunchedEffect(selectedCategory, searchQueryExplorer) {
+                    // Charger les prestataires en fonction des filtres
+                    LaunchedEffect(selectedCategory, searchQueryExplorer, filterOptions, sortOption) {
                         isLoadingExplorer = true
                         val data = prestataireRepo.searchPrestataires(
                             service = selectedCategory,
-                            noteMin = null,
+                            noteMin = if (filterOptions.noteMin > 0) filterOptions.noteMin.toDouble() else null,
                             zone = null
                         )
                         if (data != null) {
-                            filteredPrestatairesExplorer = if (searchQueryExplorer.isNotBlank()) {
-                                data.filter {
+                            allPrestataires = data // ✅ Sauvegarder la liste complète
+                            var filtered = data
+
+                            // Filtrage par prix
+                            if (filterOptions.priceMin > 0 || filterOptions.priceMax < 3000.0) {
+                                filtered = filtered.filter {
+                                    val tarif = it.tarifHoraire?.toDouble() ?: 0.0
+                                    tarif >= filterOptions.priceMin && tarif <= filterOptions.priceMax
+                                }
+                            }
+
+                            // Filtrage par recherche texte
+                            if (searchQueryExplorer.isNotBlank()) {
+                                filtered = filtered.filter {
                                     it.nom.contains(searchQueryExplorer, ignoreCase = true) ||
                                             (it.competences?.contains(searchQueryExplorer, ignoreCase = true) == true) ||
                                             (it.zoneIntervention?.contains(searchQueryExplorer, ignoreCase = true) == true)
                                 }
-                            } else {
-                                data
                             }
+
+                            // Tri
+                            when (sortOption) {
+                                "Note (croissante)" -> filtered = filtered.sortedBy { it.moyenneNotes?.toDouble() ?: 0.0 }
+                                "Note (décroissante)" -> filtered = filtered.sortedByDescending { it.moyenneNotes?.toDouble() ?: 0.0 }
+                                "Prix (croissant)" -> filtered = filtered.sortedBy { it.tarifHoraire?.toDouble() ?: 0.0 }
+                                "Prix (décroissant)" -> filtered = filtered.sortedByDescending { it.tarifHoraire?.toDouble() ?: 0.0 }
+                                else -> { /* Par défaut */ }
+                            }
+
+                            filteredPrestatairesExplorer = filtered
                         } else {
+                            allPrestataires = emptyList()
                             filteredPrestatairesExplorer = emptyList()
                         }
                         isLoadingExplorer = false
@@ -507,6 +544,7 @@ fun ClientDashboard(
                             .padding(horizontal = space24, vertical = space24)
                             .verticalScroll(rememberScrollState())
                     ) {
+                        // Titre
                         Text(
                             text = "Explorer",
                             style = MaterialTheme.typography.headlineMedium,
@@ -514,16 +552,32 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space8))
                         Text(
-                            text = "Parcourez par catégorie",
+                            text = "Trouvez le prestataire idéal",
                             style = MaterialTheme.typography.bodyLarge,
                             color = Gray500
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // Champ de recherche
+                        // 🔍 Champ de recherche
                         OutlinedTextField(
                             value = searchQueryExplorer,
-                            onValueChange = { searchQueryExplorer = it },
+                            onValueChange = { query ->
+                                searchQueryExplorer = query
+                                // Mise à jour des suggestions
+                                if (query.length >= 2 && allPrestataires.isNotEmpty()) {
+                                    val allNames = allPrestataires.map { it.nom }
+                                    val allCompetences = allPrestataires.flatMap {
+                                        it.competences?.split(",")?.map { it.trim() } ?: emptyList()
+                                    }
+                                    val combined = (allNames + allCompetences).distinct()
+                                    suggestions = combined.filter { suggestion ->
+                                        suggestion.contains(query, ignoreCase = true)
+                                    }.take(5)
+                                    showSuggestions = suggestions.isNotEmpty()
+                                } else {
+                                    showSuggestions = false
+                                }
+                            },
                             label = { Text("Rechercher un prestataire") },
                             placeholder = { Text("Nom, compétence...", color = Gray500) },
                             modifier = Modifier.fillMaxWidth(),
@@ -540,8 +594,8 @@ fun ClientDashboard(
                                 unfocusedIndicatorColor = NavyLight,
                                 focusedLabelColor = NavyPrimary,
                                 unfocusedLabelColor = Gray600,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
+                                focusedContainerColor = Color(0xFFFFFFFF),
+                                unfocusedContainerColor = Color(0xFFFFFFFF),
                                 focusedTextColor = Gray900,
                                 unfocusedTextColor = Gray900,
                                 errorIndicatorColor = ErrorColor,
@@ -552,37 +606,109 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // Grille des catégories
-                        if (services.isNotEmpty()) {
-                            Text(
-                                "Catégories",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Gray600,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(space8))
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(4),
-                                horizontalArrangement = Arrangement.spacedBy(space8),
-                                verticalArrangement = Arrangement.spacedBy(space8),
+                        // Suggestions
+                        if (showSuggestions) {
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(180.dp)
+                                    .heightIn(max = 150.dp)
+                                    .padding(vertical = space4),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = MaterialTheme.shapes.small
                             ) {
-                                items(services) { service ->
-                                    CategoryCard(
-                                        service = service,
-                                        isSelected = selectedCategory == service.nom,
-                                        onClick = {
-                                            selectedCategory = if (selectedCategory == service.nom) null else service.nom
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = space8)
+                                ) {
+                                    items(suggestions) { suggestion ->
+                                        TextButton(
+                                            onClick = {
+                                                searchQueryExplorer = suggestion
+                                                showSuggestions = false
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = suggestion,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Gray700,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
+                                        Divider(color = Gray100)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space8))
+                        }
+
+                        // Tri
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Tri", style = MaterialTheme.typography.labelLarge, color = Gray600)
+                            Box {
+                                TextButton(onClick = { showSortDropdown = !showSortDropdown }) {
+                                    Text(text = sortOption, color = NavyPrimary)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = NavyPrimary)
+                                }
+                                DropdownMenu(
+                                    expanded = showSortDropdown,
+                                    onDismissRequest = { showSortDropdown = false }
+                                ) {
+                                    sortOptions.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option) },
+                                            onClick = {
+                                                sortOption = option
+                                                showSortDropdown = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(space8))
+
+                        // Filtres + Bascule vue
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showFilters = true }) {
+                                Icon(
+                                    Icons.Default.FilterList,
+                                    contentDescription = "Filtres",
+                                    tint = NavyPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(space4))
+                                Text("Filtres", color = NavyPrimary)
+                            }
+
+                            Row {
+                                IconButton(onClick = { isGridView = true }) {
+                                    Icon(
+                                        imageVector = if (isGridView) Icons.Filled.GridView else Icons.Outlined.GridView,
+                                        contentDescription = "Vue grille",
+                                        tint = if (isGridView) NavyPrimary else Gray400
+                                    )
+                                }
+                                IconButton(onClick = { isGridView = false }) {
+                                    Icon(
+                                        imageVector = if (isGridView) Icons.Outlined.List else Icons.Filled.List,
+                                        contentDescription = "Vue liste",
+                                        tint = if (isGridView) Gray400 else NavyPrimary
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(space24))
                         }
+                        Spacer(modifier = Modifier.height(space8))
 
-                        // Résultats des prestataires avec photo, nom, note, tarif
+                        // Résultats
                         if (isLoadingExplorer) {
                             CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
                             Spacer(modifier = Modifier.height(space16))
@@ -602,28 +728,62 @@ fun ClientDashboard(
                             )
                             Spacer(modifier = Modifier.height(space8))
 
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(2),
-                                horizontalArrangement = Arrangement.spacedBy(space8),
-                                verticalArrangement = Arrangement.spacedBy(space8),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(350.dp)
-                            ) {
-                                items(filteredPrestatairesExplorer) { prestataire ->
-                                    ExplorerPrestataireCard(
-                                        prestataire = prestataire,
-                                        onClick = {
-                                            selectedPrestataire.value = prestataire   // ✅ Nouveau
-                                            showPrestataireDetail.value = true        // ✅ Nouveau
-                                        }
-                                    )
+                            if (isGridView) {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    horizontalArrangement = Arrangement.spacedBy(space8),
+                                    verticalArrangement = Arrangement.spacedBy(space8),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(350.dp)
+                                ) {
+                                    items(filteredPrestatairesExplorer) { prestataire ->
+                                        ExplorerPrestataireCard(
+                                            prestataire = prestataire,
+                                            onClick = {
+                                                selectedPrestataire.value = prestataire
+                                                showPrestataireDetail.value = true
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(350.dp),
+                                    verticalArrangement = Arrangement.spacedBy(space8)
+                                ) {
+                                    items(filteredPrestatairesExplorer) { prestataire ->
+                                        ExplorerPrestataireListCard(
+                                            prestataire = prestataire,
+                                            onClick = {
+                                                selectedPrestataire.value = prestataire
+                                                showPrestataireDetail.value = true
+                                            }
+                                        )
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.height(space16))
                         }
                     }
+
+                    // Bottom Sheet des filtres
+                    if (showFilters) {
+                        FilterBottomSheet(
+                            currentFilters = filterOptions,
+                            onApplyFilters = { newFilters ->
+                                filterOptions = newFilters
+                                showFilters = false
+                            },
+                            onDismiss = {
+                                showFilters = false
+                            }
+                        )
+                    }
                 }
+
                 2 -> {
                     ReservationsScreen(
                         onBack = { selectedTab = 0 },
@@ -965,6 +1125,86 @@ fun CompactPrestataireCard(
                     color = Gray500
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ExplorerPrestataireListCard(
+    prestataire: Prestataire,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(space12),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Photo
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+                    .background(NavyLight.copy(alpha = 0.3f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = NavyPrimary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(space12))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = prestataire.nom,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = NavyPrimary
+                )
+                Row {
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                                Icons.Filled.Star
+                            else
+                                Icons.Outlined.Star,
+                            contentDescription = null,
+                            tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                                GreenPrimary else Gray300,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = " (${prestataire.nombreAvis})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Gray500
+                    )
+                }
+                Text(
+                    text = "💰 ${prestataire.tarifHoraire?.toString() ?: "N/A"} Gdes/h",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray600
+                )
+                Text(
+                    text = prestataire.competences?.take(20) ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray500,
+                    maxLines = 1
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Gray400
+            )
         }
     }
 }
