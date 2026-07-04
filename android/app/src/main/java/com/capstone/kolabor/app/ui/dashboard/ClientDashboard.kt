@@ -51,6 +51,7 @@ import com.kolabor.app.ui.theme.*
 import java.math.BigDecimal
 import com.capstone.kolabor.app.data.model.FilterOptions
 import com.capstone.kolabor.app.ui.client.FilterBottomSheet
+import com.capstone.kolabor.app.ui.client.ReservationDetailScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,21 +61,23 @@ fun ClientDashboard(
     onNavigateToBook: (Long) -> Unit,
     userName: String = "Client",   // ✅ nouveau paramètre
     showPrestataireDetail: MutableState<Boolean>,
-    selectedPrestataire: MutableState<Prestataire?>
+    selectedPrestataire: MutableState<Prestataire?>,
+    currentTab: MutableState<Int>,               // ✅ AJOUT
+    onTabChanged: (Int) -> Unit,                 // ✅ AJOUT
+    onNavigateToReservations: () -> Unit         // ✅ AJOUT
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val serviceRepo = remember { ServiceRepository(context) }
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(currentTab.value) }
     var services by remember { mutableStateOf<List<Service>>(emptyList()) }
     var totalReservations by remember { mutableStateOf(0) }
     val prestataireRepo = remember { PrestataireRepository(context) }
+    var selectedReservation by remember { mutableStateOf<Reservation?>(null) }
+    var showReservationDetail by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        val data = serviceRepo.getServices()
-        if (data != null) {
-            services = data
-        }
+    LaunchedEffect(currentTab.value) {
+        selectedTab = currentTab.value
     }
 
     var selectedServiceFilter by remember { mutableStateOf<String?>(null) }
@@ -159,6 +162,7 @@ fun ClientDashboard(
                         selected = selectedTab == index,
                         onClick = {
                             selectedTab = index
+                            onTabChanged(index)
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NavyPrimary,
@@ -785,10 +789,24 @@ fun ClientDashboard(
                 }
 
                 2 -> {
-                    ReservationsScreen(
-                        onBack = { selectedTab = 0 },
-                        clientId = clientId
-                    )
+                    // ✅ États pour gérer le détail de la réservation
+                    if (selectedReservation != null) {
+                        ReservationDetailScreen(
+                            reservation = selectedReservation!!,
+                            clientId = clientId,   // ✅ AJOUT
+                            onBack = { selectedReservation = null },
+                            onCancel = { selectedReservation = null },
+                            onReview = { selectedReservation = null }
+                        )
+                    } else {
+                        ReservationsScreen(
+                            onBack = { selectedTab = 0 },
+                            clientId = clientId,
+                            onReservationClick = { reservation ->
+                                selectedReservation = reservation  // ✅ Affiche le détail
+                            }
+                        )
+                    }
                 }
                 3 -> {
                     ProfileScreen(onLogout = onLogout)

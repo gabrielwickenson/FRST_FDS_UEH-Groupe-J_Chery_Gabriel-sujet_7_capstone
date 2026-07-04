@@ -1,6 +1,7 @@
 package com.capstone.kolabor.app.data.api
 
 import com.capstone.kolabor.app.data.model.Avis
+import com.capstone.kolabor.app.data.model.AvisRequest
 import com.capstone.kolabor.app.data.model.Disponibilite
 import com.capstone.kolabor.app.data.model.LoginRequest
 import com.capstone.kolabor.app.data.model.LoginResponse
@@ -46,5 +47,11 @@ interface ApiService {
     @GET("/api/reservations/{id}/avis")
     suspend fun getAvisByPrestataire(@Path("id") id: Long): List<Avis>
 
+    @POST("/api/reservations/{id}/avis")
+    suspend fun submitAvis(
+        @Path("id") id: Long,
+        @Query("clientId") clientId: Long,
+        @Body request: AvisRequest
+    ): Response<Unit>
 
 }

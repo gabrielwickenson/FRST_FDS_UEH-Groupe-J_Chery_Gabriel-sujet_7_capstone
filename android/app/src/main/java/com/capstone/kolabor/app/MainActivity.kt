@@ -1,6 +1,7 @@
 package com.kolabor.app
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,15 +20,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.capstone.kolabor.app.ui.auth.LoginScreen
 import com.capstone.kolabor.app.ui.auth.RegisterScreen
-import com.capstone.kolabor.app.ui.client.BookScreen
-import com.capstone.kolabor.app.ui.client.PrestataireDetailScreen
+import com.capstone.kolabor.app.ui.client.*
 import com.capstone.kolabor.app.ui.dashboard.ClientDashboard
 import com.capstone.kolabor.app.ui.dashboard.PrestataireDashboard
 import com.capstone.kolabor.app.ui.onboarding.OnboardingScreen
 import com.kolabor.app.ui.theme.KolaborTheme
 import com.capstone.kolabor.app.utils.TokenManager
 import com.capstone.kolabor.app.data.model.Prestataire
-import com.capstone.serviceplatform.app.ui.theme.*
+import com.capstone.kolabor.app.data.model.Reservation
+import com.capstone.serviceplatform.app.ui.theme.Gray300
+import com.kolabor.app.ui.theme.*
+import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -48,13 +51,16 @@ fun KolaborApp() {
     val tokenManager = remember { TokenManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    // États de navigation
+    // États de navigation globaux
     val showOnboarding = remember { mutableStateOf(true) }
     val showLogin = remember { mutableStateOf(false) }
     val showRegister = remember { mutableStateOf(false) }
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
     val clientId = remember { mutableStateOf<Long?>(null) }
+
+    // États pour le ClientDashboard
+    val clientTab = remember { mutableStateOf(0) }
 
     // États pour le détail du prestataire
     val showPrestataireDetail = remember { mutableStateOf(false) }
@@ -64,8 +70,12 @@ fun KolaborApp() {
     val showBookingBottomSheet = remember { mutableStateOf(false) }
     val selectedPrestataireForBooking = remember { mutableStateOf<Prestataire?>(null) }
 
-    // Ajoutez cette ligne avec les autres états
-    val clientTab = remember { mutableStateOf(0) }
+    // États pour la liste des réservations
+    val showReservations = remember { mutableStateOf(false) }
+
+    // États pour le détail d'une réservation
+    val showReservationDetail = remember { mutableStateOf(false) }
+    val selectedReservation = remember { mutableStateOf<Reservation?>(null) }
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
@@ -118,14 +128,20 @@ fun KolaborApp() {
                                             }
                                         },
                                         clientId = clientId.value ?: 0L,
-                                        onNavigateToBook = { prestataireId ->
-                                            // Ce callback est déclenché depuis l'accueil ou l'explorer
-                                            // On va chercher le prestataire dans la liste (on va le passer via un état partagé)
-                                            // Ici on va simplement ouvrir le détail avec un prestataire factice (à améliorer)
-                                        },
+                                        onNavigateToBook = { /* géré ailleurs */ },
                                         showPrestataireDetail = showPrestataireDetail,
                                         selectedPrestataire = selectedPrestataire,
-
+                                        currentTab = clientTab,
+                                        onTabChanged = { newTab ->
+                                            clientTab.value = newTab
+                                        },
+                                        onNavigateToReservations = {
+                                            coroutineScope.launch {
+                                                val id = tokenManager.getUserId()
+                                                clientId.value = id ?: 0L
+                                                showReservations.value = true
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -192,7 +208,63 @@ fun KolaborApp() {
                 }
             }
 
-            // ─── BOTTOM SHEET DE RÉSERVATION (3/4 de l'écran) ───
+            // ─── OVERLAY : LISTE DES RÉSERVATIONS ───
+            if (showReservations.value) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White)
+                ) {
+                    ReservationsScreen(
+                        onBack = {
+                            showReservations.value = false
+                        },
+                        clientId = clientId.value ?: 0L,
+                        onReservationClick = { reservation ->
+                            // ✅ Ceci est exécuté quand on clique sur une carte
+                            Toast.makeText(context, "Callback overlay: ${reservation.id}", Toast.LENGTH_SHORT).show()
+                            Log.d("MainActivity", "1. Callback: ${reservation.id}")
+                            selectedReservation.value = reservation
+                            Log.d("MainActivity", "2. selectedReservation = ${selectedReservation.value?.id}")
+                            showReservationDetail.value = true
+                            Log.d("MainActivity", "3. showReservationDetail = ${showReservationDetail.value}")
+                            showReservations.value = false
+                            Log.d("MainActivity", "4. showReservations = ${showReservations.value}")
+                        }
+                    )
+                }
+            }
+
+            // ─── OVERLAY : DÉTAIL D'UNE RÉSERVATION ───
+            if (showReservationDetail.value && selectedReservation.value != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White)
+                ) {
+                    ReservationDetailScreen(
+                        reservation = selectedReservation.value!!,
+                        clientId = clientId.value ?: 0L,
+                        onBack = {
+                            showReservationDetail.value = false
+                            selectedReservation.value = null
+                            // Optionnel : rouvrir la liste
+                            // showReservations.value = true
+                        },
+                        onCancel = {
+                            showReservationDetail.value = false
+                            selectedReservation.value = null
+                            Toast.makeText(context, "Réservation annulée", Toast.LENGTH_LONG).show()
+                            // Recharger la liste si besoin
+                        },
+                        onReview = {
+                            Toast.makeText(context, "Ouvrir le formulaire d'avis", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+
+            // ─── BOTTOM SHEET DE RÉSERVATION (pour la réservation d'un prestataire) ───
             if (showBookingBottomSheet.value && selectedPrestataireForBooking.value != null) {
                 ModalBottomSheet(
                     onDismissRequest = {
@@ -220,7 +292,7 @@ fun KolaborApp() {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(screenHeight * 0.75f) // 75% de l'écran
+                            .height(screenHeight * 0.75f)
                     ) {
                         BookScreen(
                             onBack = {
