@@ -18,4 +18,13 @@ class PrestataireRepository(private val context: Context) {
             null
         }
     }
+
+    suspend fun getStatistiques(prestataireId: Long): Map<String, Any>? {
+        return try {
+            RetrofitInstance.getApi(context).getStatistiques(prestataireId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }

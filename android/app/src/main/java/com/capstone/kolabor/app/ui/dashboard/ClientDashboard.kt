@@ -52,6 +52,7 @@ import java.math.BigDecimal
 import com.capstone.kolabor.app.data.model.FilterOptions
 import com.capstone.kolabor.app.ui.client.FilterBottomSheet
 import com.capstone.kolabor.app.ui.client.ReservationDetailScreen
+import com.capstone.kolabor.app.ui.dashboard.ProfileScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -904,29 +905,6 @@ fun DashboardActionCard(
             Icon(icon, contentDescription = label, tint = NavyPrimary, modifier = Modifier.size(48.dp))
             Spacer(modifier = Modifier.height(space8))
             Text(label, style = MaterialTheme.typography.labelLarge, color = NavyPrimary)
-        }
-    }
-}
-
-// 👤 ProfileScreen (inchangé)
-@Composable
-fun ProfileScreen(onLogout: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(space24),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Default.Person, contentDescription = "Profil", modifier = Modifier.size(80.dp), tint = NavyPrimary)
-        Spacer(modifier = Modifier.height(space16))
-        Text("Espace Profil", style = MaterialTheme.typography.headlineMedium, color = NavyPrimary)
-        Text("Gérez vos informations personnelles", style = MaterialTheme.typography.bodyLarge, color = Gray500)
-        Spacer(modifier = Modifier.height(space32))
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ErrorColor, contentColor = Color.White)
-        ) {
-            Text("Déconnexion", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
