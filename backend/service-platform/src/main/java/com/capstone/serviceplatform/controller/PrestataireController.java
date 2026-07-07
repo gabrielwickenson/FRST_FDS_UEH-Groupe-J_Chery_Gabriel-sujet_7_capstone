@@ -1,5 +1,7 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.AvailabilityRequest;
+import com.capstone.serviceplatform.dto.DailyRevenue;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
@@ -22,10 +24,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/prestataires")
@@ -247,5 +250,70 @@ public class PrestataireController {
         // 5. Supprimer la disponibilité
         disponibiliteRepository.deleteById(disponibiliteId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/availability")
+    @Operation(summary = "Mettre à jour la disponibilité du prestataire")
+    public ResponseEntity<?> updateAvailability(@PathVariable Long id,
+                                                @RequestBody AvailabilityRequest request) {
+        // 1. Vérifier l'authentification
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Non authentifié"));
+        }
+
+        // 2. Vérifier que le prestataire modifie son propre compte
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Non autorisé"));
+        }
+
+        // 3. Mettre à jour la disponibilité
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.notFound().build();
+        }
+        prestataire.setDisponible(request.isDisponible());
+        prestataireRepository.save(prestataire);
+
+        return ResponseEntity.ok(Map.of("message", "Disponibilité mise à jour"));
+    }
+
+    @GetMapping("/{id}/revenue/week")
+    @Operation(summary = "Revenus des 7 derniers jours pour un prestataire")
+    public ResponseEntity<List<DailyRevenue>> getWeeklyRevenue(@PathVariable Long id) {
+        // 1. Vérifier l'authentification et le propriétaire
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null || !currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        List<DailyRevenue> result = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE", Locale.FRENCH);
+
+        // Parcourir les 7 derniers jours (du plus ancien au plus récent)
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(23, 59, 59);
+
+            // Récupérer les réservations terminées de ce jour
+            List<Reservation> reservations = reservationRepository.findByPrestataireIdAndStatutAndDateHeureBetween(
+                    id, "TERMINEE", startOfDay, endOfDay
+            );
+
+            // Somme des montants
+            BigDecimal total = reservations.stream()
+                    .map(Reservation::getMontant)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            String dayLabel = sdf.format(Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()));
+            result.add(new DailyRevenue(dayLabel, total));
+        }
+
+        return ResponseEntity.ok(result);
     }
 }
