@@ -1,9 +1,12 @@
 package com.capstone.kolabor.app.data.api
 
+import com.capstone.kolabor.app.data.model.AvailabilityRequest
 import com.capstone.kolabor.app.data.model.Avis
 import com.capstone.kolabor.app.data.model.AvisRequest
 import com.capstone.kolabor.app.data.model.ChangePasswordRequest
+import com.capstone.kolabor.app.data.model.DailyRevenue
 import com.capstone.kolabor.app.data.model.Disponibilite
+import com.capstone.kolabor.app.data.model.DisponibiliteRequest
 import com.capstone.kolabor.app.data.model.LoginRequest
 import com.capstone.kolabor.app.data.model.LoginResponse
 import com.capstone.kolabor.app.data.model.Prestataire
@@ -15,6 +18,7 @@ import com.capstone.kolabor.app.data.model.UpdateUserRequest
 import com.capstone.kolabor.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -45,9 +49,6 @@ interface ApiService {
     @GET("/api/services")
     suspend fun getServices(): List<Service>
 
-    @GET("/api/prestataires/{id}/disponibilites")
-    suspend fun getDisponibilites(@Path("id") id: Long): List<Disponibilite>
-
     @GET("/api/reservations/{id}/avis")
     suspend fun getAvisByPrestataire(@Path("id") id: Long): List<Avis>
 
@@ -75,4 +76,39 @@ interface ApiService {
 
     @GET("/api/prestataires/{id}/statistiques")
     suspend fun getStatistiques(@Path("id") id: Long): Map<String, Any>
+
+    @GET("/api/reservations/prestataire/{prestataireId}")
+    suspend fun getReservationsByPrestataire(@Path("prestataireId") id: Long): List<Reservation>
+
+    @PUT("/api/reservations/{id}/statut")
+    suspend fun updateStatut(
+        @Path("id") id: Long,
+        @Query("statut") statut: String,
+        @Query("prestataireId") prestataireId: Long
+    ): Response<Unit>
+
+    @PUT("/api/prestataires/{id}/availability")
+    suspend fun updateAvailability(
+        @Path("id") id: Long,
+        @Body request: AvailabilityRequest
+    ): Response<Unit>
+
+    @GET("/api/prestataires/{id}/revenue/week")
+    suspend fun getWeeklyRevenue(@Path("id") id: Long): List<DailyRevenue>
+
+    // Disponibilités
+    @GET("/api/prestataires/{prestataireId}/disponibilites")
+    suspend fun getDisponibilites(
+        @Path("prestataireId") prestataireId: Long
+    ): List<Disponibilite>
+    @POST("/api/prestataires/{prestataireId}/disponibilites")
+    suspend fun addDisponibilite(
+        @Path("prestataireId") prestataireId: Long,
+        @Body request: DisponibiliteRequest
+    ): Disponibilite
+
+    @DELETE("/api/prestataires/disponibilites/{disponibiliteId}")
+    suspend fun deleteDisponibilite(
+        @Path("disponibiliteId") disponibiliteId: Long
+    ): Response<Unit>
 }
