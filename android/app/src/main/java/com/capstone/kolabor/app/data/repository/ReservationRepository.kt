@@ -41,4 +41,24 @@ class ReservationRepository(private val context: Context) {
             false
         }
     }
+
+    suspend fun getReservationsByPrestataire(prestataireId: Long): List<Reservation>? {
+        return try {
+            RetrofitInstance.getApi(context).getReservationsByPrestataire(prestataireId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    // Dans ReservationRepository.kt
+    suspend fun updateStatut(reservationId: Long, statut: String, prestataireId: Long): Boolean {
+        return try {
+            val response = RetrofitInstance.getApi(context).updateStatut(reservationId, statut, prestataireId)
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }
