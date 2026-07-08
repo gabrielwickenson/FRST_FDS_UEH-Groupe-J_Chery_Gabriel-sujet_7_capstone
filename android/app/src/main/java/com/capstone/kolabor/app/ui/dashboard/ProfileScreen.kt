@@ -1,11 +1,11 @@
 package com.capstone.kolabor.app.ui.dashboard
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,6 +28,14 @@ import com.capstone.kolabor.app.data.repository.UserRepository
 import com.capstone.kolabor.app.utils.TokenManager
 import com.capstone.serviceplatform.app.ui.theme.ErrorColor
 import com.capstone.serviceplatform.app.ui.theme.*
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +47,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
     val userRepository = remember { UserRepository(context) }
 
     var user by remember { mutableStateOf<User?>(null) }
+    var persistedPhotoUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showEditScreen by remember { mutableStateOf(false) }
@@ -51,6 +60,54 @@ fun ProfileScreen(onLogout: () -> Unit) {
     var totalRevenue by remember { mutableStateOf<Double?>(null) }
     var totalReviews by remember { mutableStateOf(0) }
     var isLoadingStats by remember { mutableStateOf(true) }
+    // Image
+    var showImagePicker by remember { mutableStateOf(false) }
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var isLoadingPhoto by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val currentUserId = user?.id
+            if (currentUserId == null) {
+                Toast.makeText(context, "Utilisateur non chargé", Toast.LENGTH_SHORT).show()
+                showImagePicker = false
+                return@rememberLauncherForActivityResult
+            }
+            photoUri = uri
+            showImagePicker = false
+            coroutineScope.launch {
+                isLoadingPhoto = true
+                val result = userRepository.uploadPhoto(currentUserId, uri)
+                if (result != null) {
+                    val normalizedResult = normalizePhotoUrl(result)
+                    persistedPhotoUrl = normalizedResult
+                    tokenManager.saveUserPhoto(normalizedResult)
+                    // ✅ RECHARGER L'UTILISATEUR DEPUIS LE BACKEND
+                    val refreshedUser = userRepository.getUserById(currentUserId)
+                    if (refreshedUser != null) {
+                        user = refreshedUser
+                        persistedPhotoUrl = normalizePhotoUrl(refreshedUser.photo) ?: persistedPhotoUrl
+                        tokenManager.saveUserPhoto(persistedPhotoUrl)
+                    }
+                    Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
+                }
+                isLoadingPhoto = false
+            }
+        } else {
+            showImagePicker = false
+        }
+    }
+
+    // Déclencher le sélecteur d'image
+    if (showImagePicker) {
+        LaunchedEffect(Unit) {
+            imagePickerLauncher.launch("image/*")
+        }
+    }
 
     // Charger les données
     LaunchedEffect(Unit) {
@@ -58,6 +115,13 @@ fun ProfileScreen(onLogout: () -> Unit) {
         val userId = tokenManager.getUserId()
         if (userId != null) {
             user = userRepository.getUserById(userId)
+            persistedPhotoUrl = tokenManager.getUserPhoto()
+            if (persistedPhotoUrl.isNullOrBlank()) {
+                persistedPhotoUrl = normalizePhotoUrl(user?.photo)
+                tokenManager.saveUserPhoto(persistedPhotoUrl)
+            } else {
+                persistedPhotoUrl = normalizePhotoUrl(persistedPhotoUrl)
+            }
             if (user == null) {
                 errorMessage = "Impossible de charger le profil"
             } else {
@@ -149,7 +213,13 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             .verticalScroll(rememberScrollState())
                     ) {
                         // En-tête du profil
-                        ProfileHeader(user = user!!)
+                        ProfileHeader(
+                            user = user!!,
+                            onEditPhotoClick = { showImagePicker = true },
+                            isLoadingPhoto = isLoadingPhoto,
+                            photoUri = photoUri,
+                            persistedPhotoUrl = persistedPhotoUrl
+                        )
 
                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -234,7 +304,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                     )
                                     StatCard(
                                         label = "Note moyenne",
-                                        value = String.format("%.1f", averageRating ?: 0.0),
+                                        value = String.format(Locale.getDefault(), "%.1f", averageRating ?: 0.0),
                                         icon = Icons.Default.Star,
                                         color = GreenPrimary,
                                         modifier = Modifier.weight(1f)
@@ -246,7 +316,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 ) {
                                     StatCard(
                                         label = "Revenus totaux",
-                                        value = String.format("%.0f Gdes", totalRevenue ?: 0.0),
+                                        value = String.format(Locale.getDefault(), "%.0f Gdes", totalRevenue ?: 0.0),
                                         icon = Icons.Default.AttachMoney,
                                         color = NavyPrimary,
                                         modifier = Modifier.weight(1f)
@@ -270,6 +340,17 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             onClick = { showEditScreen = true },
                             containerColor = NavyPrimary,
                             contentColor = Color.White
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        ActionButton(
+                            icon = Icons.Default.Edit,
+                            text = "Modifier la photo de profil",
+                            onClick = { showImagePicker = true },
+                            containerColor = Color.White,
+                            contentColor = NavyPrimary,
+                            isOutlined = true
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -323,63 +404,158 @@ fun ProfileScreen(onLogout: () -> Unit) {
 // --- Composants réutilisables ---
 
 @Composable
-fun ProfileHeader(user: User) {
+fun ProfileHeader(
+    user: User,
+    onEditPhotoClick: () -> Unit,
+    isLoadingPhoto: Boolean,
+    photoUri: Uri?,
+    persistedPhotoUrl: String?
+) {
     val roleColor = when (user.role) {
         "CLIENT" -> GreenPrimary
         "PRESTATAIRE" -> NavyPrimary
         else -> Gray600
     }
 
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        colors = CardDefaults.cardColors(containerColor = Gray50),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        // Photo de profil
-        Box(
+        Row(
             modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(NavyLight.copy(alpha = 0.2f))
-                .border(2.dp, NavyPrimary, CircleShape)
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Photo de profil",
-                tint = NavyPrimary,
-                modifier = Modifier
-                    .size(48.dp)
-                    .align(Alignment.Center)
-            )
-        }
+            // Le conteneur externe n'est pas clipé, donc le badge reste visible.
+            Box(modifier = Modifier.size(92.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(84.dp)
+                        .align(Alignment.Center)
+                        .clip(CircleShape)
+                        .background(NavyLight.copy(alpha = 0.2f))
+                        .border(2.dp, NavyPrimary, CircleShape)
+                ) {
+                    when {
+                        photoUri != null -> {
+                            AsyncImage(
+                                model = photoUri,
+                                contentDescription = "Photo de profil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        !persistedPhotoUrl.isNullOrBlank() -> {
+                            AsyncImage(
+                                model = persistedPhotoUrl,
+                                contentDescription = "Photo de profil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        user.photo != null && user.photo.isNotEmpty() -> {
+                            val fullUrl = normalizePhotoUrl(user.photo)
+                            AsyncImage(
+                                model = fullUrl,
+                                contentDescription = "Photo de profil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Photo de profil",
+                                tint = NavyPrimary,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .align(Alignment.Center)
+                            )
+                        }
+                    }
+                    if (isLoadingPhoto) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.25f))
+                        )
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .align(Alignment.Center),
+                            color = Color.White,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                }
 
-        Spacer(modifier = Modifier.width(16.dp))
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(34.dp)
+                        .border(2.dp, Color.White, CircleShape)
+                        .clickable(onClick = onEditPhotoClick),
+                    shape = CircleShape,
+                    color = NavyPrimary,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Modifier la photo",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
 
-        // Nom et rôle
-        Column {
-            Text(
-                text = user.nom,
-                style = MaterialTheme.typography.headlineSmall,
-                color = NavyPrimary,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = roleColor.copy(alpha = 0.12f)
-            ) {
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column {
                 Text(
-                    text = user.role,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = roleColor,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    text = user.nom,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = NavyPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = roleColor.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = user.role,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = roleColor,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Appuyez sur le crayon pour changer la photo",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray500
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(1f))
+        }
     }
 }
 
+private fun normalizePhotoUrl(photo: String?): String? {
+    if (photo.isNullOrBlank()) return null
+    return if (photo.startsWith("http://") || photo.startsWith("https://")) {
+        photo
+    } else {
+        "http://10.0.2.2:8080$photo"
+    }
+}
 @Composable
 fun InfoCard(icon: ImageVector, label: String, value: String, isRole: Boolean = false) {
     Card(

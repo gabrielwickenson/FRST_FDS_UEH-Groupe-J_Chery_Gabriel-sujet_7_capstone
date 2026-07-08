@@ -16,12 +16,15 @@ import com.capstone.kolabor.app.data.model.ReservationRequest
 import com.capstone.kolabor.app.data.model.Service
 import com.capstone.kolabor.app.data.model.UpdateUserRequest
 import com.capstone.kolabor.app.data.model.User
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -111,4 +114,18 @@ interface ApiService {
     suspend fun deleteDisponibilite(
         @Path("disponibiliteId") disponibiliteId: Long
     ): Response<Unit>
+
+    @Multipart
+    @POST("/api/users/{id}/photo")
+    suspend fun uploadPhoto(
+        @Path("id") id: Long,
+        @Part file: MultipartBody.Part
+    ): Response<Map<String, String>>
+
+    @Multipart
+    @PUT("/api/users/{id}/photo")
+    suspend fun updatePhoto(
+        @Path("id") id: Long,
+        @Part file: MultipartBody.Part
+    ): Response<Map<String, String>>
 }

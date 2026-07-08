@@ -2,19 +2,18 @@ package com.capstone.serviceplatform.controller;
 
 import com.capstone.serviceplatform.entity.User;
 import com.capstone.serviceplatform.repository.UserRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import com.capstone.serviceplatform.repository.NotificationRepository;
+import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,10 +25,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -42,68 +40,8 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Value("${app.upload-dir:uploads}")
-    private String uploadDir;
-
-    private MultipartFile resolveUploadedFile(MultipartFile file, MultipartFile photo) {
-        if (file != null && !file.isEmpty()) {
-            return file;
-        }
-        if (photo != null && !photo.isEmpty()) {
-            return photo;
-        }
-        return null;
-    }
-
-    private Path getUploadDirectoryPath() {
-        return Paths.get(uploadDir).toAbsolutePath().normalize();
-    }
-
-    private Path resolveStoredPhotoPath(String storedPhoto) {
-        if (storedPhoto == null || storedPhoto.isBlank()) {
-            return null;
-        }
-
-        String normalized = storedPhoto.trim();
-        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-            try {
-                normalized = URI.create(normalized).getPath();
-            } catch (IllegalArgumentException ignored) {
-                return null;
-            }
-        }
-
-        if (normalized.startsWith("/")) {
-            normalized = normalized.substring(1);
-        }
-
-        if (normalized.startsWith("uploads/")) {
-            normalized = normalized.substring("uploads/".length());
-        }
-
-        if (normalized.isBlank()) {
-            return null;
-        }
-
-        return getUploadDirectoryPath().resolve(normalized).normalize();
-    }
-
-    private String buildPublicPhotoUrl(String relativePhotoPath) {
-        return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path(relativePhotoPath)
-                .toUriString();
-    }
-
-    private User getAuthenticatedUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            return null;
-        }
-
-        String email = authentication.getName();
-        return userRepository.findByEmail(email).orElse(null);
-    }
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     // Endpoint pour enregistrer le token FCM
     @PutMapping("/fcm-token")
@@ -118,7 +56,8 @@ public class UserController {
                                             @Parameter(description = "ID de l'utilisateur") @RequestParam Long userId) {
 
         // 1. Récupérer l'utilisateur authentifié
-        User currentUser = getAuthenticatedUser();
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -150,7 +89,8 @@ public class UserController {
     public ResponseEntity<?> getUserById(@PathVariable Long id) {
 
         // 1. Récupérer l'utilisateur authentifié
-        User currentUser = getAuthenticatedUser();
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -172,7 +112,6 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @Transactional
     @PostMapping("/{id}/photo")
     @Operation(summary = "Uploader une photo de profil")
     @ApiResponses(value = {
@@ -184,13 +123,11 @@ public class UserController {
     })
     public ResponseEntity<?> uploadPhoto(
             @PathVariable Long id,
-            @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "photo", required = false) MultipartFile photo) {
-
-        MultipartFile uploadedFile = resolveUploadedFile(file, photo);
+            @RequestParam("file") MultipartFile file) {
 
         // 1. Vérifier l'authentification
-        User currentUser = getAuthenticatedUser();
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -203,60 +140,55 @@ public class UserController {
         }
 
         // 3. Vérifier que le fichier est présent
-        if (uploadedFile == null) {
+        if (file == null || file.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Aucun fichier fourni"));
         }
 
         // 4. Vérifier que le fichier est une image
-        String contentType = uploadedFile.getContentType();
+        String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Le fichier doit être une image"));
         }
 
         // 5. Vérifier la taille du fichier (max 5 Mo)
-        if (uploadedFile.getSize() > 5 * 1024 * 1024) {
+        if (file.getSize() > 5 * 1024 * 1024) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "La taille du fichier ne doit pas dépasser 5 Mo"));
         }
 
         try {
-            Path uploadPath = getUploadDirectoryPath();
-            Files.createDirectories(uploadPath);
-
             // 6. Générer un nom unique pour le fichier
-            String originalFilename = uploadedFile.getOriginalFilename();
+            String originalFilename = file.getOriginalFilename();
             String extension = originalFilename != null && originalFilename.contains(".")
                     ? originalFilename.substring(originalFilename.lastIndexOf("."))
                     : ".jpg";
             String fileName = System.currentTimeMillis() + "_" + currentUser.getId() + extension;
 
-            // 7. Sauvegarder le fichier
-            Path dest = uploadPath.resolve(fileName);
-            uploadedFile.transferTo(dest.toFile());
+            // 7. Créer le dossier d'upload si inexistant
+            String uploadDir = "uploads/";
+            File dir = new File(uploadDir);
+            if (!dir.exists()) dir.mkdirs();
+
+            // 8. Sauvegarder le fichier
+            File dest = new File(uploadDir + fileName);
+            file.transferTo(dest);
 
             // 9. Supprimer l'ancienne photo si elle existe (optionnel)
             String oldPhoto = currentUser.getPhoto();
-            Path oldFilePath = resolveStoredPhotoPath(oldPhoto);
-            if (oldFilePath != null && Files.exists(oldFilePath) && !oldFilePath.equals(dest)) {
-                Files.deleteIfExists(oldFilePath);
+            if (oldPhoto != null && !oldPhoto.isEmpty()) {
+                File oldFile = new File("." + oldPhoto);
+                if (oldFile.exists()) oldFile.delete();
             }
 
             // 10. Mettre à jour l'utilisateur
-            String relativePhotoPath = "/uploads/" + fileName;
-            currentUser.setPhoto(relativePhotoPath);
-            System.out.println("📸 Photo sauvegardée : " + currentUser.getPhoto());
+            currentUser.setPhoto("/uploads/" + fileName);
             userRepository.save(currentUser);
-
-            String publicPhotoUrl = buildPublicPhotoUrl(relativePhotoPath);
 
             // 11. Retourner l'URL de la nouvelle photo
             return ResponseEntity.ok(Map.of(
-                    "photo", currentUser.getPhoto(),
-                    "photoUrl", publicPhotoUrl,
-                    "publicPhotoUrl", publicPhotoUrl,
-                    "userId", currentUser.getId(),
+                    "photoUrl", currentUser.getPhoto(),
                     "message", "Photo mise à jour avec succès"
             ));
         } catch (IOException e) {
@@ -275,7 +207,8 @@ public class UserController {
     })
     public ResponseEntity<?> getPhoto(@PathVariable Long id) {
         // 1. Vérifier l'authentification
-        User currentUser = getAuthenticatedUser();
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -296,23 +229,11 @@ public class UserController {
         try {
             // 4. Lire le fichier
             String photoPath = targetUser.getPhoto(); // ex: "/uploads/123456.jpg"
-            Path file = resolveStoredPhotoPath(photoPath);
-            if (file == null) {
-                return ResponseEntity.notFound().build();
-            }
+            Path file = Paths.get("." + photoPath);
             Resource resource = new UrlResource(file.toUri());
             if (resource.exists() && resource.isReadable()) {
-                MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
-                try {
-                    String detectedType = Files.probeContentType(file);
-                    if (detectedType != null && !detectedType.isBlank()) {
-                        mediaType = MediaType.parseMediaType(detectedType);
-                    }
-                } catch (IOException ignored) {
-                    // Fallback to application/octet-stream if the content type cannot be determined.
-                }
                 return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_TYPE, mediaType.toString())
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_JPEG_VALUE)
                         .body(resource);
             } else {
                 return ResponseEntity.notFound().build();
