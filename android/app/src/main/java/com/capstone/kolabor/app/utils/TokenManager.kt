@@ -17,6 +17,7 @@ class TokenManager(private val context: Context) {
         private val ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
         private val NAME_KEY = stringPreferencesKey("user_name")
+        private val PHOTO_KEY = stringPreferencesKey("user_photo")
     }
 
     // Sauvegarder le token JWT
@@ -64,6 +65,22 @@ class TokenManager(private val context: Context) {
         }
     }
 
+    suspend fun saveUserPhoto(photoUrl: String?) {
+        context.dataStore.edit { prefs ->
+            if (photoUrl.isNullOrBlank()) {
+                prefs.remove(PHOTO_KEY)
+            } else {
+                prefs[PHOTO_KEY] = photoUrl
+            }
+        }
+    }
+
+    suspend fun getUserPhoto(): String? {
+        return context.dataStore.data.map { prefs ->
+            prefs[PHOTO_KEY]
+        }.first()
+    }
+
     suspend fun getUserName(): String? {
         return context.dataStore.data.map { prefs ->
             prefs[NAME_KEY]
@@ -75,6 +92,9 @@ class TokenManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs.remove(TOKEN_KEY)
             prefs.remove(ROLE_KEY)
+            prefs.remove(USER_ID_KEY)
+            prefs.remove(NAME_KEY)
+            prefs.remove(PHOTO_KEY)
         }
     }
 

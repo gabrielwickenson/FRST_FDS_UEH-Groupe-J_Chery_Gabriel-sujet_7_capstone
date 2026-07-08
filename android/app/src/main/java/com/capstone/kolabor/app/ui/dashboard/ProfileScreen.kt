@@ -1,7 +1,6 @@
 package com.capstone.kolabor.app.ui.dashboard
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -36,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +47,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
     val userRepository = remember { UserRepository(context) }
 
     var user by remember { mutableStateOf<User?>(null) }
+    var persistedPhotoUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showEditScreen by remember { mutableStateOf(false) }
@@ -76,12 +77,20 @@ fun ProfileScreen(onLogout: () -> Unit) {
             }
             photoUri = uri
             showImagePicker = false
-            // Uploader automatiquement
             coroutineScope.launch {
                 isLoadingPhoto = true
                 val result = userRepository.uploadPhoto(currentUserId, uri)
                 if (result != null) {
-                    user = user?.copy(photo = result)
+                    val normalizedResult = normalizePhotoUrl(result)
+                    persistedPhotoUrl = normalizedResult
+                    tokenManager.saveUserPhoto(normalizedResult)
+                    // ✅ RECHARGER L'UTILISATEUR DEPUIS LE BACKEND
+                    val refreshedUser = userRepository.getUserById(currentUserId)
+                    if (refreshedUser != null) {
+                        user = refreshedUser
+                        persistedPhotoUrl = normalizePhotoUrl(refreshedUser.photo) ?: persistedPhotoUrl
+                        tokenManager.saveUserPhoto(persistedPhotoUrl)
+                    }
                     Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
@@ -106,6 +115,13 @@ fun ProfileScreen(onLogout: () -> Unit) {
         val userId = tokenManager.getUserId()
         if (userId != null) {
             user = userRepository.getUserById(userId)
+            persistedPhotoUrl = tokenManager.getUserPhoto()
+            if (persistedPhotoUrl.isNullOrBlank()) {
+                persistedPhotoUrl = normalizePhotoUrl(user?.photo)
+                tokenManager.saveUserPhoto(persistedPhotoUrl)
+            } else {
+                persistedPhotoUrl = normalizePhotoUrl(persistedPhotoUrl)
+            }
             if (user == null) {
                 errorMessage = "Impossible de charger le profil"
             } else {
@@ -201,7 +217,8 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             user = user!!,
                             onEditPhotoClick = { showImagePicker = true },
                             isLoadingPhoto = isLoadingPhoto,
-                            photoUri = photoUri
+                            photoUri = photoUri,
+                            persistedPhotoUrl = persistedPhotoUrl
                         )
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -287,7 +304,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                     )
                                     StatCard(
                                         label = "Note moyenne",
-                                        value = String.format("%.1f", averageRating ?: 0.0),
+                                        value = String.format(Locale.getDefault(), "%.1f", averageRating ?: 0.0),
                                         icon = Icons.Default.Star,
                                         color = GreenPrimary,
                                         modifier = Modifier.weight(1f)
@@ -299,7 +316,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 ) {
                                     StatCard(
                                         label = "Revenus totaux",
-                                        value = String.format("%.0f Gdes", totalRevenue ?: 0.0),
+                                        value = String.format(Locale.getDefault(), "%.0f Gdes", totalRevenue ?: 0.0),
                                         icon = Icons.Default.AttachMoney,
                                         color = NavyPrimary,
                                         modifier = Modifier.weight(1f)
@@ -391,7 +408,8 @@ fun ProfileHeader(
     user: User,
     onEditPhotoClick: () -> Unit,
     isLoadingPhoto: Boolean,
-    photoUri: Uri?
+    photoUri: Uri?,
+    persistedPhotoUrl: String?
 ) {
     val roleColor = when (user.role) {
         "CLIENT" -> GreenPrimary
@@ -430,8 +448,16 @@ fun ProfileHeader(
                                 contentScale = ContentScale.Crop
                             )
                         }
+                        !persistedPhotoUrl.isNullOrBlank() -> {
+                            AsyncImage(
+                                model = persistedPhotoUrl,
+                                contentDescription = "Photo de profil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
                         user.photo != null && user.photo.isNotEmpty() -> {
-                            val fullUrl = "http://10.0.2.2:8080${user.photo}"
+                            val fullUrl = normalizePhotoUrl(user.photo)
                             AsyncImage(
                                 model = fullUrl,
                                 contentDescription = "Photo de profil",
@@ -519,6 +545,15 @@ fun ProfileHeader(
 
             Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+private fun normalizePhotoUrl(photo: String?): String? {
+    if (photo.isNullOrBlank()) return null
+    return if (photo.startsWith("http://") || photo.startsWith("https://")) {
+        photo
+    } else {
+        "http://10.0.2.2:8080$photo"
     }
 }
 @Composable
