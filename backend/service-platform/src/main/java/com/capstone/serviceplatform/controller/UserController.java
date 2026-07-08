@@ -1,18 +1,20 @@
 package com.capstone.serviceplatform.controller;
 
-import com.capstone.serviceplatform.dto.ChangePasswordRequest;
-import com.capstone.serviceplatform.dto.UpdateUserRequest;
-import com.capstone.serviceplatform.entity.*;
-import com.capstone.serviceplatform.repository.ClientRepository;
-import com.capstone.serviceplatform.repository.PrestataireRepository;
+import com.capstone.serviceplatform.entity.User;
 import com.capstone.serviceplatform.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -22,9 +24,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
-import java.util.List;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 
 @RestController
@@ -35,12 +42,68 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
-    @Autowired
-    private ClientRepository clientRepository;
-    @Autowired
-    private PrestataireRepository prestataireRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+
+    @Value("${app.upload-dir:uploads}")
+    private String uploadDir;
+
+    private MultipartFile resolveUploadedFile(MultipartFile file, MultipartFile photo) {
+        if (file != null && !file.isEmpty()) {
+            return file;
+        }
+        if (photo != null && !photo.isEmpty()) {
+            return photo;
+        }
+        return null;
+    }
+
+    private Path getUploadDirectoryPath() {
+        return Paths.get(uploadDir).toAbsolutePath().normalize();
+    }
+
+    private Path resolveStoredPhotoPath(String storedPhoto) {
+        if (storedPhoto == null || storedPhoto.isBlank()) {
+            return null;
+        }
+
+        String normalized = storedPhoto.trim();
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            try {
+                normalized = URI.create(normalized).getPath();
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+
+        if (normalized.startsWith("uploads/")) {
+            normalized = normalized.substring("uploads/".length());
+        }
+
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        return getUploadDirectoryPath().resolve(normalized).normalize();
+    }
+
+    private String buildPublicPhotoUrl(String relativePhotoPath) {
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path(relativePhotoPath)
+                .toUriString();
+    }
+
+    private User getAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+
+        String email = authentication.getName();
+        return userRepository.findByEmail(email).orElse(null);
+    }
 
     // Endpoint pour enregistrer le token FCM
     @PutMapping("/fcm-token")
@@ -55,8 +118,7 @@ public class UserController {
                                             @Parameter(description = "ID de l'utilisateur") @RequestParam Long userId) {
 
         // 1. Récupérer l'utilisateur authentifié
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByEmail(email).orElse(null);
+        User currentUser = getAuthenticatedUser();
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -88,8 +150,7 @@ public class UserController {
     public ResponseEntity<?> getUserById(@PathVariable Long id) {
 
         // 1. Récupérer l'utilisateur authentifié
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByEmail(email).orElse(null);
+        User currentUser = getAuthenticatedUser();
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
@@ -111,107 +172,153 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "Mettre à jour le profil de l'utilisateur connecté")
+    @Transactional
+    @PostMapping("/{id}/photo")
+    @Operation(summary = "Uploader une photo de profil")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Profil mis à jour"),
+            @ApiResponse(responseCode = "200", description = "Photo mise à jour"),
             @ApiResponse(responseCode = "401", description = "Non authentifié"),
             @ApiResponse(responseCode = "403", description = "Non autorisé"),
-            @ApiResponse(responseCode = "404", description = "Utilisateur non trouvé")
+            @ApiResponse(responseCode = "400", description = "Fichier invalide"),
+            @ApiResponse(responseCode = "500", description = "Erreur serveur")
     })
-    public ResponseEntity<?> updateUser(
+    public ResponseEntity<?> uploadPhoto(
             @PathVariable Long id,
-            @RequestBody UpdateUserRequest request) {
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "photo", required = false) MultipartFile photo) {
+
+        MultipartFile uploadedFile = resolveUploadedFile(file, photo);
 
         // 1. Vérifier l'authentification
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByEmail(email).orElse(null);
+        User currentUser = getAuthenticatedUser();
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur modifie son propre profil
+        // 2. Vérifier que l'utilisateur modifie son propre compte
         if (!currentUser.getId().equals(id)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Vous n'êtes pas autorisé à modifier un autre compte"));
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à modifier la photo d'un autre utilisateur"));
         }
 
-        // 3. Mettre à jour les champs communs
-        if (request.getNom() != null) currentUser.setNom(request.getNom());
-        if (request.getTelephone() != null) currentUser.setTelephone(request.getTelephone());
-
-        // 4. Mettre à jour les champs spécifiques selon le rôle
-        if (currentUser.getRole() == Role.CLIENT) {
-            // Récupérer l'entité Client associée
-            Client client = clientRepository.findById(id).orElse(null);
-            if (client != null && request.getAdresseParDefaut() != null) {
-                client.setAdresseParDefaut(request.getAdresseParDefaut());
-                clientRepository.save(client);
-            }
-        } else if (currentUser.getRole() == Role.PRESTATAIRE) {
-            Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
-            if (prestataire != null) {
-                if (request.getCompetences() != null) prestataire.setCompetences(request.getCompetences());
-                if (request.getTarifHoraire() != null) {
-                    prestataire.setTarifHoraire(BigDecimal.valueOf(request.getTarifHoraire()));
-                }
-                if (request.getZoneIntervention() != null) prestataire.setZoneIntervention(request.getZoneIntervention());
-                prestataireRepository.save(prestataire);
-            }
+        // 3. Vérifier que le fichier est présent
+        if (uploadedFile == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Aucun fichier fourni"));
         }
 
-        // 5. Sauvegarder l'utilisateur (pour les champs communs)
-        userRepository.save(currentUser);
+        // 4. Vérifier que le fichier est une image
+        String contentType = uploadedFile.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Le fichier doit être une image"));
+        }
 
-        // 6. Retourner le profil mis à jour (sans mot de passe)
-        currentUser.setMotDePasse(null);
-        return ResponseEntity.ok(currentUser);
+        // 5. Vérifier la taille du fichier (max 5 Mo)
+        if (uploadedFile.getSize() > 5 * 1024 * 1024) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "La taille du fichier ne doit pas dépasser 5 Mo"));
+        }
+
+        try {
+            Path uploadPath = getUploadDirectoryPath();
+            Files.createDirectories(uploadPath);
+
+            // 6. Générer un nom unique pour le fichier
+            String originalFilename = uploadedFile.getOriginalFilename();
+            String extension = originalFilename != null && originalFilename.contains(".")
+                    ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                    : ".jpg";
+            String fileName = System.currentTimeMillis() + "_" + currentUser.getId() + extension;
+
+            // 7. Sauvegarder le fichier
+            Path dest = uploadPath.resolve(fileName);
+            uploadedFile.transferTo(dest.toFile());
+
+            // 9. Supprimer l'ancienne photo si elle existe (optionnel)
+            String oldPhoto = currentUser.getPhoto();
+            Path oldFilePath = resolveStoredPhotoPath(oldPhoto);
+            if (oldFilePath != null && Files.exists(oldFilePath) && !oldFilePath.equals(dest)) {
+                Files.deleteIfExists(oldFilePath);
+            }
+
+            // 10. Mettre à jour l'utilisateur
+            String relativePhotoPath = "/uploads/" + fileName;
+            currentUser.setPhoto(relativePhotoPath);
+            System.out.println("📸 Photo sauvegardée : " + currentUser.getPhoto());
+            userRepository.save(currentUser);
+
+            String publicPhotoUrl = buildPublicPhotoUrl(relativePhotoPath);
+
+            // 11. Retourner l'URL de la nouvelle photo
+            return ResponseEntity.ok(Map.of(
+                    "photo", currentUser.getPhoto(),
+                    "photoUrl", publicPhotoUrl,
+                    "publicPhotoUrl", publicPhotoUrl,
+                    "userId", currentUser.getId(),
+                    "message", "Photo mise à jour avec succès"
+            ));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erreur lors de l'enregistrement du fichier: " + e.getMessage()));
+        }
     }
 
-    @PutMapping("/{id}/password")
-    @Operation(summary = "Changer le mot de passe de l'utilisateur connecté")
+    @GetMapping("/{id}/photo")
+    @Operation(summary = "Récupérer la photo de profil d'un utilisateur")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Mot de passe mis à jour"),
-            @ApiResponse(responseCode = "400", description = "Ancien mot de passe incorrect ou nouveau mot de passe invalide"),
+            @ApiResponse(responseCode = "200", description = "Photo renvoyée"),
             @ApiResponse(responseCode = "401", description = "Non authentifié"),
-            @ApiResponse(responseCode = "403", description = "Non autorisé (tentative de modification d'un autre compte)"),
-            @ApiResponse(responseCode = "404", description = "Utilisateur non trouvé")
+            @ApiResponse(responseCode = "403", description = "Non autorisé"),
+            @ApiResponse(responseCode = "404", description = "Photo non trouvée")
     })
-    public ResponseEntity<?> changePassword(
-            @PathVariable Long id,
-            @RequestBody ChangePasswordRequest request) {
-
+    public ResponseEntity<?> getPhoto(@PathVariable Long id) {
         // 1. Vérifier l'authentification
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userRepository.findByEmail(email).orElse(null);
+        User currentUser = getAuthenticatedUser();
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur modifie son propre mot de passe
+        // 2. Vérifier que l'utilisateur a le droit de voir cette photo
         if (!currentUser.getId().equals(id)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Vous n'êtes pas autorisé à changer le mot de passe d'un autre compte"));
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à voir cette photo"));
         }
 
-        // 3. Vérifier l'ancien mot de passe
-        if (!passwordEncoder.matches(request.getOldPassword(), currentUser.getMotDePasse())) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Ancien mot de passe incorrect"));
+        // 3. Récupérer l'utilisateur pour obtenir le chemin de la photo
+        User targetUser = userRepository.findById(id).orElse(null);
+        if (targetUser == null || targetUser.getPhoto() == null) {
+            return ResponseEntity.notFound().build();
         }
 
-        // 4. Vérifier que le nouveau mot de passe est valide (longueur minimale)
-        if (request.getNewPassword() == null || request.getNewPassword().length() < 6) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Le nouveau mot de passe doit contenir au moins 6 caractères"));
+        try {
+            // 4. Lire le fichier
+            String photoPath = targetUser.getPhoto(); // ex: "/uploads/123456.jpg"
+            Path file = resolveStoredPhotoPath(photoPath);
+            if (file == null) {
+                return ResponseEntity.notFound().build();
+            }
+            Resource resource = new UrlResource(file.toUri());
+            if (resource.exists() && resource.isReadable()) {
+                MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+                try {
+                    String detectedType = Files.probeContentType(file);
+                    if (detectedType != null && !detectedType.isBlank()) {
+                        mediaType = MediaType.parseMediaType(detectedType);
+                    }
+                } catch (IOException ignored) {
+                    // Fallback to application/octet-stream if the content type cannot be determined.
+                }
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, mediaType.toString())
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (MalformedURLException e) {
+            return ResponseEntity.notFound().build();
         }
-
-        // 5. Hasher et sauvegarder le nouveau mot de passe
-        currentUser.setMotDePasse(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(currentUser);
-
-        return ResponseEntity.ok(Map.of("message", "Mot de passe mis à jour avec succès"));
     }
 }
