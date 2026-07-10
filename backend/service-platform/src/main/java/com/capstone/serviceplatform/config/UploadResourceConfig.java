@@ -11,7 +11,7 @@ import java.nio.file.Paths;
 @Configuration
 public class UploadResourceConfig implements WebMvcConfigurer {
 
-    @Value("${app.upload-dir:uploads}")
+    @Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
     @Override
@@ -21,4 +21,3 @@ public class UploadResourceConfig implements WebMvcConfigurer {
                 .addResourceLocations(uploadPath.toUri().toString());
     }
 }
-
