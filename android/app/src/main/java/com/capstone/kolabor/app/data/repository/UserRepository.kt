@@ -3,6 +3,7 @@ package com.capstone.kolabor.app.data.repository
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import com.capstone.kolabor.app.data.api.RetrofitInstance
 import com.capstone.kolabor.app.data.model.ChangePasswordRequest
 import com.capstone.kolabor.app.data.model.UpdateUserRequest
@@ -44,7 +45,11 @@ class UserRepository(private val context: Context) {
 
     suspend fun uploadPhoto(userId: Long, imageUri: Uri): String? {
         return try {
-            val inputStream = context.contentResolver.openInputStream(imageUri) ?: return null
+            val inputStream = context.contentResolver.openInputStream(imageUri)
+            if (inputStream == null) {
+                Log.e("UserRepo", "Impossible d'ouvrir l'URI : $imageUri")
+                return null
+            }
             val tempFile = File(context.cacheDir, "temp_photo_${System.currentTimeMillis()}.jpg")
             try {
                 inputStream.use { input ->

@@ -36,6 +36,11 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import java.util.Locale
+import android.app.Activity
+import android.graphics.Bitmap
+import androidx.core.content.FileProvider
+import com.yalantis.ucrop.UCrop
+import java.io.File
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,40 +70,77 @@ fun ProfileScreen(onLogout: () -> Unit) {
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var isLoadingPhoto by remember { mutableStateOf(false) }
 
+    // ✅ 1. Launcher pour recevoir le résultat du recadrage (déclaré en premier)
+    val uCropLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            if (data != null) {
+                val croppedUri = UCrop.getOutput(data)
+                if (croppedUri != null) {
+                    val currentUserId = user?.id
+                    if (currentUserId != null) {
+                        photoUri = croppedUri
+                        showImagePicker = false
+                        coroutineScope.launch {
+                            isLoadingPhoto = true
+                            val uploadResult = userRepository.uploadPhoto(currentUserId, croppedUri)
+                            if (uploadResult != null) {
+                                val refreshedUser = userRepository.getUserById(currentUserId)
+                                if (refreshedUser != null) {
+                                    user = refreshedUser
+                                }
+                                Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
+                            }
+                            isLoadingPhoto = false
+                        }
+                    }
+                }
+            }
+        } else if (result.resultCode == Activity.RESULT_CANCELED) {
+            showImagePicker = false
+        }
+    }
+
+// 2. Sélectionner l'image depuis la galerie
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val currentUserId = user?.id
-            if (currentUserId == null) {
-                Toast.makeText(context, "Utilisateur non chargé", Toast.LENGTH_SHORT).show()
+            val destinationFile = File(context.cacheDir, "cropped_profile_photo.jpg")
+            val destinationUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                destinationFile
+            )
+            val uCrop = UCrop.of(uri, destinationUri)
+                .withAspectRatio(1f, 1f)
+                .withMaxResultSize(500, 500)
+                .withOptions(UCrop.Options().apply {
+                    setCircleDimmedLayer(true)
+                    setShowCropFrame(true)
+                    setShowCropGrid(false)
+                    setCompressionFormat(Bitmap.CompressFormat.JPEG)
+                    setCompressionQuality(90)
+                    setToolbarColor(android.graphics.Color.parseColor("#19355F"))
+                    // ✅ AJOUTER CETTE LIGNE (force la couleur des icônes en blanc)
+                    setToolbarWidgetColor(android.graphics.Color.WHITE)
+                    setToolbarTitle("Recadrer la photo") // Optionnel : personnalise le titre
+                })
+            println("📸 URI source : $uri")
+            println("📸 URI destination : $destinationUri")
+            try {
+                // ✅ Correction : obtenir l'Intent depuis UCrop
+                val intent = uCrop.getIntent(context)
+                uCropLauncher.launch(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Erreur lors du recadrage : ${e.message}", Toast.LENGTH_LONG).show()
                 showImagePicker = false
-                return@rememberLauncherForActivityResult
             }
-            photoUri = uri
-            showImagePicker = false
-            coroutineScope.launch {
-                isLoadingPhoto = true
-                val result = userRepository.uploadPhoto(currentUserId, uri)
-                if (result != null) {
-                    val normalizedResult = normalizePhotoUrl(result)
-                    persistedPhotoUrl = normalizedResult
-                    tokenManager.saveUserPhoto(normalizedResult)
-                    // ✅ RECHARGER L'UTILISATEUR DEPUIS LE BACKEND
-                    val refreshedUser = userRepository.getUserById(currentUserId)
-                    if (refreshedUser != null) {
-                        user = refreshedUser
-                        persistedPhotoUrl = normalizePhotoUrl(refreshedUser.photo) ?: persistedPhotoUrl
-                        tokenManager.saveUserPhoto(persistedPhotoUrl)
-                    }
-                    Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
-                }
-                isLoadingPhoto = false
-            }
-        } else {
-            showImagePicker = false
         }
     }
 
