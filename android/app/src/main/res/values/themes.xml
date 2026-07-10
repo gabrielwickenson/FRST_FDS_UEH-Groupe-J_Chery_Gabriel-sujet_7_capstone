@@ -2,4 +2,12 @@
 <resources>
 
     <style name="Theme.Kolabor" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Kolabor.UCrop" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Couleur de la barre d'état -->
+        <item name="android:statusBarColor">#19355F</item>
+        <!-- Désactiver la transparence de la barre d'état -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <!-- Permettre au contenu de s'adapter aux fenêtres système -->
+        <item name="android:fitsSystemWindows">true</item>
+    </style>
 </resources>
