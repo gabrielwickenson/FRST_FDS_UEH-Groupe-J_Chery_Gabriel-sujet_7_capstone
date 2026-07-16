@@ -1,122 +1,93 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React from "react";
+import { AppProvider, useApp } from "./AppContext.jsx";
+import Header from "./components/Header.jsx";
+import Footer from "./components/Footer.jsx";
+import Accueil from "./screens/Accueil.jsx";
+import Services from "./screens/Services.jsx";
+import Comment from "./screens/Comment.jsx";
+import Pros from "./screens/Pros.jsx";
+import Profil from "./screens/Profil.jsx";
+import ServiceDetail from "./screens/ServiceDetail.jsx";
+import Login from "./screens/Login.jsx";
+import Signup from "./screens/Signup.jsx";
+import Reserver from "./screens/Reserver.jsx";
+import Paiement from "./screens/Paiement.jsx";
+import Confirmation from "./screens/Confirmation.jsx";
+import DashClient from "./screens/DashClient.jsx";
+import Messagerie from "./screens/Messagerie.jsx";
+import DashPro from "./screens/DashPro.jsx";
+import Catalogue from "./screens/Catalogue.jsx";
+import ProLanding from "./screens/ProLanding.jsx";
+import Apropos from "./screens/Apropos.jsx";
+import Tarifs from "./screens/Tarifs.jsx";
+import Blog from "./screens/Blog.jsx";
+import Aide from "./screens/Aide.jsx";
+import Contact from "./screens/Contact.jsx";
+import Faq from "./screens/Faq.jsx";
+import Legal from "./screens/Legal.jsx";
+import Admin from "./screens/Admin.jsx";
+import NotFound from "./screens/NotFound.jsx";
+import Favoris from "./screens/Favoris.jsx";
+import Factures from "./screens/Factures.jsx";
+import Parametres from "./screens/Parametres.jsx";
+import MesServices from "./screens/MesServices.jsx";
+import Dispos from "./screens/Dispos.jsx";
+import Revenus from "./screens/Revenus.jsx";
 
-function App() {
-  const [count, setCount] = useState(0)
+const SCREEN_COMPONENTS = {
+  accueil: Accueil,
+  services: Services,
+  comment: Comment,
+  pros: Pros,
+  profil: Profil,
+  service: ServiceDetail,
+  login: Login,
+  signup: Signup,
+  reserver: Reserver,
+  paiement: Paiement,
+  confirm: Confirmation,
+  dashclient: DashClient,
+  messages: Messagerie,
+  dashpro: DashPro,
+  catalogue: Catalogue,
+  prolanding: ProLanding,
+  apropos: Apropos,
+  tarifs: Tarifs,
+  blog: Blog,
+  aide: Aide,
+  contact: Contact,
+  faq: Faq,
+  legal: Legal,
+  admin: Admin,
+  notfound: NotFound,
+  favoris: Favoris,
+  factures: Factures,
+  params: Parametres,
+  messervices: MesServices,
+  dispos: Dispos,
+  revenus: Revenus,
+};
 
+function AppShell() {
+  const { screen } = useApp();
+  const Screen = SCREEN_COMPONENTS[screen] || NotFound;
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <div className="app-shell">
+      <Header />
+      <main>
+        <Screen />
+      </main>
+      <Footer />
+    </div>
+  );
 }
 
-export default App
+function App() {
+  return (
+    <AppProvider>
+      <AppShell />
+    </AppProvider>
+  );
+}
+
+export default App;
