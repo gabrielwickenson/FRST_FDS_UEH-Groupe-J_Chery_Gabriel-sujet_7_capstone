@@ -15,8 +15,17 @@ public class Prestataire extends User {
     private BigDecimal moyenneNotes;
     @Formula("(SELECT COUNT(*) FROM avis a JOIN reservation r ON a.reservation_id = r.id WHERE r.prestataire_id = id)")
     private int nombreAvis;
+    private Boolean disponible = true;
 
     // getters et setters
+    public Boolean getDisponible() {
+        return disponible;
+    }
+
+    public void setDisponible(Boolean disponible) {
+        this.disponible = disponible;
+    }
+
     public int getNombreAvis() {
         return nombreAvis;
     }

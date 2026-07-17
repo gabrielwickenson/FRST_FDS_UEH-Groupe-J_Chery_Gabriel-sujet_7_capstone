@@ -1,5 +1,6 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.DailyRevenue;
 import com.capstone.serviceplatform.entity.*;
 import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
@@ -20,11 +21,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.capstone.serviceplatform.dto.AvailabilityRequest;
+import com.capstone.serviceplatform.dto.DailyRevenue;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 @RestController
@@ -247,5 +252,104 @@ public class PrestataireController {
         // 5. Supprimer la disponibilité
         disponibiliteRepository.deleteById(disponibiliteId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/availability")
+    @Operation(summary = "Mettre à jour la disponibilité du prestataire")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Disponibilité mise à jour"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (vous ne pouvez modifier que votre propre disponibilité)"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> updateAvailability(
+            @PathVariable Long id,
+            @RequestBody AvailabilityRequest request) {
+
+        // 1. Vérifier l'authentification
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur modifie son propre compte
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à modifier la disponibilité d'un autre prestataire"));
+        }
+
+        // 3. Récupérer le prestataire et mettre à jour
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+
+        prestataire.setDisponible(request.isDisponible());
+        prestataireRepository.save(prestataire);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Disponibilité mise à jour",
+                "disponible", request.isDisponible()
+        ));
+    }
+
+    @GetMapping("/{id}/revenue/week")
+    @Operation(summary = "Revenus des 7 derniers jours pour un prestataire")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des revenus journaliers"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (vous ne pouvez consulter que vos propres revenus)"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> getWeeklyRevenue(@PathVariable Long id) {
+
+        // 1. Vérifier l'authentification
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur consulte ses propres revenus
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les revenus d'un autre prestataire"));
+        }
+
+        // 3. Vérifier que le prestataire existe
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+
+        // 4. Calculer les revenus des 7 derniers jours
+        List<DailyRevenue> result = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE", Locale.FRENCH);
+
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            LocalDateTime startOfDay = date.atStartOfDay();
+            LocalDateTime endOfDay = date.atTime(23, 59, 59);
+
+            List<Reservation> reservations = reservationRepository.findByPrestataireIdAndStatutAndDateHeureBetween(
+                    id, "TERMINEE", startOfDay, endOfDay
+            );
+
+            BigDecimal total = reservations.stream()
+                    .map(Reservation::getMontant)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            String dayLabel = sdf.format(Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()));
+            result.add(new DailyRevenue(dayLabel, total));
+        }
+
+        return ResponseEntity.ok(result);
     }
 }
