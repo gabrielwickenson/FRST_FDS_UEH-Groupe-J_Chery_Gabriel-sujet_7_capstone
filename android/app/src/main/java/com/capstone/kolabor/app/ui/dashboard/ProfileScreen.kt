@@ -1,13 +1,18 @@
 package com.capstone.kolabor.app.ui.dashboard
 
+import android.app.Activity
+import android.graphics.Bitmap
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,31 +22,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
 import com.capstone.kolabor.app.data.model.User
 import com.capstone.kolabor.app.data.repository.PrestataireRepository
 import com.capstone.kolabor.app.data.repository.ReservationRepository
 import com.capstone.kolabor.app.data.repository.UserRepository
 import com.capstone.kolabor.app.utils.TokenManager
-import com.capstone.serviceplatform.app.ui.theme.ErrorColor
 import com.capstone.serviceplatform.app.ui.theme.*
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
-import java.util.Locale
-import android.app.Activity
-import android.graphics.Bitmap
-import androidx.core.content.FileProvider
 import com.yalantis.ucrop.UCrop
+import kotlinx.coroutines.launch
 import java.io.File
-
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +53,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showEditScreen by remember { mutableStateOf(false) }
     var showChangePasswordSheet by remember { mutableStateOf(false) }
+
     // Statistiques
     var totalReservations by remember { mutableStateOf(0) }
     var completedReservations by remember { mutableStateOf(0) }
@@ -65,12 +62,13 @@ fun ProfileScreen(onLogout: () -> Unit) {
     var totalRevenue by remember { mutableStateOf<Double?>(null) }
     var totalReviews by remember { mutableStateOf(0) }
     var isLoadingStats by remember { mutableStateOf(true) }
+
     // Image
     var showImagePicker by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var isLoadingPhoto by remember { mutableStateOf(false) }
 
-    // ✅ 1. Launcher pour recevoir le résultat du recadrage (déclaré en premier)
+    // UCrop launchers
     val uCropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -88,9 +86,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             val uploadResult = userRepository.uploadPhoto(currentUserId, croppedUri)
                             if (uploadResult != null) {
                                 val refreshedUser = userRepository.getUserById(currentUserId)
-                                if (refreshedUser != null) {
-                                    user = refreshedUser
-                                }
+                                if (refreshedUser != null) user = refreshedUser
                                 Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
@@ -105,7 +101,6 @@ fun ProfileScreen(onLogout: () -> Unit) {
         }
     }
 
-// 2. Sélectionner l'image depuis la galerie
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -126,32 +121,27 @@ fun ProfileScreen(onLogout: () -> Unit) {
                     setCompressionFormat(Bitmap.CompressFormat.JPEG)
                     setCompressionQuality(90)
                     setToolbarColor(android.graphics.Color.parseColor("#19355F"))
-                    // ✅ AJOUTER CETTE LIGNE (force la couleur des icônes en blanc)
                     setToolbarWidgetColor(android.graphics.Color.WHITE)
-                    setToolbarTitle("Recadrer la photo") // Optionnel : personnalise le titre
+                    setToolbarTitle("Recadrer la photo")
                 })
-            println("📸 URI source : $uri")
-            println("📸 URI destination : $destinationUri")
             try {
-                // ✅ Correction : obtenir l'Intent depuis UCrop
                 val intent = uCrop.getIntent(context)
                 uCropLauncher.launch(intent)
             } catch (e: Exception) {
                 e.printStackTrace()
-                Toast.makeText(context, "Erreur lors du recadrage : ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Erreur de recadrage : ${e.message}", Toast.LENGTH_LONG).show()
                 showImagePicker = false
             }
         }
     }
 
-    // Déclencher le sélecteur d'image
     if (showImagePicker) {
         LaunchedEffect(Unit) {
             imagePickerLauncher.launch("image/*")
         }
     }
 
-    // Charger les données
+    // Chargement des données
     LaunchedEffect(Unit) {
         isLoading = true
         val userId = tokenManager.getUserId()
@@ -167,7 +157,6 @@ fun ProfileScreen(onLogout: () -> Unit) {
             if (user == null) {
                 errorMessage = "Impossible de charger le profil"
             } else {
-                // ✅ L'utilisateur est chargé, on charge les statistiques
                 isLoadingStats = true
                 val reservationRepo = ReservationRepository(context)
                 val prestataireRepo = PrestataireRepository(context)
@@ -185,7 +174,6 @@ fun ProfileScreen(onLogout: () -> Unit) {
                         totalReservations = (stats["nombrePrestations"] as? Int) ?: 0
                         averageRating = (stats["noteMoyenne"] as? Double)
                         totalRevenue = (stats["totalRevenus"] as? Double)
-                        // totalReviews peut être ajouté plus tard
                     }
                 }
                 isLoadingStats = false
@@ -196,6 +184,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
         isLoading = false
     }
 
+    // Gestion des écrans de modification (hors overlay)
     if (showEditScreen && user != null) {
         EditProfileScreen(
             user = user!!,
@@ -205,56 +194,40 @@ fun ProfileScreen(onLogout: () -> Unit) {
                 showEditScreen = false
             }
         )
-    } else {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Mon profil",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = NavyPrimary
-                    ),
-                    actions = {
-                        IconButton(onClick = onLogout) {
-                            Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = Color.White)
-                        }
-                    }
+        return
+    }
+
+    // Contenu principal (sans Scaffold)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = NavyPrimary
                 )
             }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(Color.White)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = NavyPrimary
-                    )
-                } else if (errorMessage != null) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Default.Error, contentDescription = null, tint = ErrorColor, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(errorMessage!!, color = ErrorColor)
-                    }
-                } else if (user != null) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 24.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        // En-tête du profil
+            errorMessage != null -> {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null, tint = ErrorColor, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(errorMessage!!, color = ErrorColor)
+                }
+            }
+            user != null -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                ) {
+                    // En‑tête avec photo
+                    item {
                         ProfileHeader(
                             user = user!!,
                             onEditPhotoClick = { showImagePicker = true },
@@ -262,188 +235,181 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             photoUri = photoUri,
                             persistedPhotoUrl = persistedPhotoUrl
                         )
-
                         Spacer(modifier = Modifier.height(24.dp))
+                    }
 
-                        // Cartes d'informations
-                        InfoCard(
-                            icon = Icons.Default.Email,
-                            label = "Email",
-                            value = user!!.email
-                        )
-                        InfoCard(
-                            icon = Icons.Default.Phone,
-                            label = "Téléphone",
-                            value = user!!.telephone ?: "Non renseigné"
-                        )
-                        InfoCard(
-                            icon = Icons.Default.Badge,
-                            label = "Rôle",
-                            value = user!!.role,
-                            isRole = true
-                        )
-
-                        // --- SECTION STATISTIQUES (design senior) ---
-                        if (!isLoadingStats && user != null) {
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Text(
-                                text = "📊 Activité",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = NavyPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 0.5.sp
+                    // SECTION 1 : PRÉFÉRENCES
+                    item {
+                        SettingsSection(title = "PRÉFÉRENCES") {
+                            SettingsItem(
+                                icon = Icons.Default.Person,
+                                label = "Modifier mon profil",
+                                onClick = { showEditScreen = true }
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            SettingsItem(
+                                icon = Icons.Default.Lock,
+                                label = "Changer mon mot de passe",
+                                onClick = { showChangePasswordSheet = true }
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.Edit,
+                                label = "Modifier la photo de profil",
+                                onClick = { showImagePicker = true }
+                            )
+                        }
+                    }
 
-                            if (user!!.role == "CLIENT") {
-                                // Ligne 1
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    StatCard(
-                                        label = "Total réservations",
-                                        value = totalReservations.toString(),
-                                        icon = Icons.Default.ListAlt,
-                                        color = NavyPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    StatCard(
-                                        label = "Terminées",
-                                        value = completedReservations.toString(),
-                                        icon = Icons.Default.CheckCircle,
-                                        color = GreenPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                // Ligne 2
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    StatCard(
-                                        label = "En cours",
-                                        value = ongoingReservations.toString(),
-                                        icon = Icons.Default.Pending,
-                                        color = Color(0xFFFFB800), // Warning
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    // Carte "fantôme" pour équilibrer (cachée)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            } else if (user!!.role == "PRESTATAIRE") {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    StatCard(
-                                        label = "Prestations",
-                                        value = totalReservations.toString(),
-                                        icon = Icons.Default.Work,
-                                        color = NavyPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    StatCard(
-                                        label = "Note moyenne",
-                                        value = String.format(Locale.getDefault(), "%.1f", averageRating ?: 0.0),
-                                        icon = Icons.Default.Star,
-                                        color = GreenPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    StatCard(
-                                        label = "Revenus totaux",
-                                        value = String.format(Locale.getDefault(), "%.0f Gdes", totalRevenue ?: 0.0),
-                                        icon = Icons.Default.AttachMoney,
-                                        color = NavyPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    StatCard(
-                                        label = "Avis reçus",
-                                        value = totalReviews.toString(),
-                                        icon = Icons.Default.RateReview,
-                                        color = NavyPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
+                    // SECTION 2 : PRÉFÉRENCES DE CONTENUS
+                    item {
+                        SettingsSection(title = "PRÉFÉRENCES DE CONTENUS") {
+                            SettingsItem(
+                                icon = Icons.Default.Info,
+                                label = "Mes informations",
+                                subtitle = "Email, téléphone, rôle",
+                                onClick = { /* déjà visible */ }
+                            )
+                            if (user!!.role == "PRESTATAIRE") {
+                                SettingsItem(
+                                    icon = Icons.Default.BarChart,
+                                    label = "Statistiques",
+                                    subtitle = "Prestations, notes, revenus",
+                                    onClick = { /* déjà visible */ }
+                                )
+                            } else {
+                                SettingsItem(
+                                    icon = Icons.Default.History,
+                                    label = "Historique des réservations",
+                                    subtitle = "Total, en cours, terminées",
+                                    onClick = { /* déjà visible */ }
+                                )
                             }
                         }
+                    }
+
+                    // SECTION 3 : PLUS
+                    item {
+                        SettingsSection(title = "PLUS") {
+                            SettingsItem(
+                                icon = Icons.Default.Notifications,
+                                label = "Notifications",
+                                subtitle = "Gérer vos alertes",
+                                onClick = { Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show() }
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.Settings,
+                                label = "Confidentialité",
+                                onClick = { Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show() }
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.Info,
+                                label = "Version 1.0.0",
+                                onClick = { /* rien */ }
+                            )
+                        }
+                    }
+
+                    item {
                         Spacer(modifier = Modifier.height(24.dp))
-
-                        // Boutons d'action
-                        ActionButton(
-                            icon = Icons.Default.Edit,
-                            text = "Modifier mon profil",
-                            onClick = { showEditScreen = true },
-                            containerColor = NavyPrimary,
-                            contentColor = Color.White
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ActionButton(
-                            icon = Icons.Default.Edit,
-                            text = "Modifier la photo de profil",
-                            onClick = { showImagePicker = true },
-                            containerColor = Color.White,
-                            contentColor = NavyPrimary,
-                            isOutlined = true
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ActionButton(
-                            icon = Icons.Default.Lock,
-                            text = "Changer mon mot de passe",
-                            onClick = { showChangePasswordSheet = true },
-                            containerColor = Color.White,
-                            contentColor = NavyPrimary,
-                            isOutlined = true
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        ActionButton(
-                            icon = Icons.Default.NotificationImportant,
-                            text = "Gérer les notifications",
-                            onClick = { /* À venir */ },
-                            containerColor = Color.White,
-                            contentColor = NavyPrimary,
-                            isOutlined = true
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
-
-                        // Version
-                        Text(
-                            text = "Version 1.0.0",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Gray400,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
                     }
                 }
             }
         }
-        if (showChangePasswordSheet && user != null) {
-            ChangePasswordBottomSheet(
-                userId = user!!.id,
-                onDismiss = { showChangePasswordSheet = false },
-                onSuccess = {
-                    showChangePasswordSheet = false
-                    Toast.makeText(context, "Mot de passe mis à jour", Toast.LENGTH_LONG).show()
-                }
-            )
+    }
+
+    // Bottom Sheet pour changement de mot de passe
+    if (showChangePasswordSheet && user != null) {
+        ChangePasswordBottomSheet(
+            userId = user!!.id,
+            onDismiss = { showChangePasswordSheet = false },
+            onSuccess = {
+                showChangePasswordSheet = false
+                Toast.makeText(context, "Mot de passe mis à jour", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+}
+
+// ─── Composants réutilisables ───
+
+@Composable
+fun SettingsSection(title: String, content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = Gray500,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column {
+                content()
+            }
         }
     }
 }
 
-// --- Composants réutilisables ---
+@Composable
+fun SettingsItem(
+    icon: ImageVector,
+    label: String,
+    subtitle: String? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = NavyPrimary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = NavyPrimary
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray500
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Gray400,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+    Divider(
+        modifier = Modifier.padding(start = 56.dp),
+        color = Gray100,
+        thickness = 1.dp
+    )
+}
+
+// ─── ProfileHeader (avec photo et badge crayon) ───
 
 @Composable
 fun ProfileHeader(
@@ -471,7 +437,6 @@ fun ProfileHeader(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Le conteneur externe n'est pas clipé, donc le badge reste visible.
             Box(modifier = Modifier.size(92.dp)) {
                 Box(
                     modifier = Modifier
@@ -485,7 +450,7 @@ fun ProfileHeader(
                         photoUri != null -> {
                             AsyncImage(
                                 model = photoUri,
-                                contentDescription = "Photo de profil",
+                                contentDescription = "Photo",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
@@ -493,7 +458,7 @@ fun ProfileHeader(
                         !persistedPhotoUrl.isNullOrBlank() -> {
                             AsyncImage(
                                 model = persistedPhotoUrl,
-                                contentDescription = "Photo de profil",
+                                contentDescription = "Photo",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
@@ -502,7 +467,7 @@ fun ProfileHeader(
                             val fullUrl = normalizePhotoUrl(user.photo)
                             AsyncImage(
                                 model = fullUrl,
-                                contentDescription = "Photo de profil",
+                                contentDescription = "Photo",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
@@ -510,7 +475,7 @@ fun ProfileHeader(
                         else -> {
                             Icon(
                                 imageVector = Icons.Default.Person,
-                                contentDescription = "Photo de profil",
+                                contentDescription = "Photo",
                                 tint = NavyPrimary,
                                 modifier = Modifier
                                     .size(48.dp)
@@ -590,140 +555,13 @@ fun ProfileHeader(
     }
 }
 
+// ─── Fonction utilitaire ───
+
 private fun normalizePhotoUrl(photo: String?): String? {
     if (photo.isNullOrBlank()) return null
     return if (photo.startsWith("http://") || photo.startsWith("https://")) {
         photo
     } else {
         "http://10.0.2.2:8080$photo"
-    }
-}
-@Composable
-fun InfoCard(icon: ImageVector, label: String, value: String, isRole: Boolean = false) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Gray50),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.small
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = NavyPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gray500
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isRole) NavyPrimary else NavyPrimary,
-                    fontWeight = if (isRole) FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ActionButton(
-    icon: ImageVector,
-    text: String,
-    onClick: () -> Unit,
-    containerColor: Color,
-    contentColor: Color,
-    isOutlined: Boolean = false
-) {
-    if (isOutlined) {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            )
-        ) {
-            Icon(icon, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.labelLarge)
-        }
-    } else {
-        Button(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            )
-        ) {
-            Icon(icon, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
-@Composable
-fun StatCard(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    color: Color,
-    hidden: Boolean = false,
-    modifier: Modifier = Modifier   // ✅ Ajout du modifier
-) {
-    if (hidden) {
-        Spacer(modifier = modifier)  // ✅ On applique le modifier même en caché
-    } else {
-        Card(
-            modifier = modifier
-                .padding(vertical = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = Gray50),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            shape = MaterialTheme.shapes.small
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = color,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gray500
-                )
-            }
-        }
     }
 }

@@ -17,7 +17,7 @@ public class Disponibilite {
     private String jour; // LUNDI, MARDI, ...
     private LocalTime heureDebut;
     private LocalTime heureFin;
-
+     // get set
     // Getters et setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

@@ -13,19 +13,8 @@ public class DailyRevenue {
         this.amount = amount;
     }
 
-    public String getDay() {
-        return day;
-    }
-
-    public void setDay(String day) {
-        this.day = day;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
-    }
+    public String getDay() { return day; }
+    public void setDay(String day) { this.day = day; }
+    public BigDecimal getAmount() { return amount; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
 }
