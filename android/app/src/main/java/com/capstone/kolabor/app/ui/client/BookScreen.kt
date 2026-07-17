@@ -2,6 +2,7 @@ package com.capstone.kolabor.app.ui.client
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -258,7 +259,8 @@ fun BookScreen(
                     adresse = adresse,
                     montant = montant.toDoubleOrNull() ?: 0.0
                 )
-
+                Log.d("BookScreen", "📤 dateHeure envoyée : $dateHeure")
+                Log.d("BookScreen", "📤 clientId=$clientId, prestataireId=${prestataire.id}, serviceId=$selectedServiceId, dateHeure=$dateHeure, adresse=$adresse, montant=$montant")
                 coroutineScope.launch {
                     try {
                         val result = reservationRepo.createReservation(request)

@@ -1,6 +1,7 @@
 package com.capstone.kolabor.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.capstone.kolabor.app.data.api.RetrofitInstance
 import com.capstone.kolabor.app.data.model.AvisRequest
 import com.capstone.kolabor.app.data.model.Reservation
@@ -19,9 +20,15 @@ class ReservationRepository(private val context: Context) {
 
     suspend fun createReservation(request: ReservationRequest): Reservation? {
         return try {
-            RetrofitInstance.getApi(context).createReservation(request)
+            val response = RetrofitInstance.getApi(context).createReservation(request)
+            if (response.isSuccessful) {
+                response.body()
+            } else {
+                Log.e("ReservationRepo", "❌ HTTP ${response.code()}: ${response.errorBody()?.string()}")
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("ReservationRepo", "❌ Exception", e)
             null
         }
     }

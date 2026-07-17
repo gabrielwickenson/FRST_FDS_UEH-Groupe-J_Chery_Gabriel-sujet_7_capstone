@@ -47,7 +47,7 @@ interface ApiService {
         @Path("clientId") clientId: Long): List<Reservation>
 
     @POST("/api/reservations")
-    suspend fun createReservation(@Body request: ReservationRequest): Reservation
+    suspend fun createReservation(@Body request: ReservationRequest): Response<Reservation>
 
     @GET("/api/services")
     suspend fun getServices(): List<Service>

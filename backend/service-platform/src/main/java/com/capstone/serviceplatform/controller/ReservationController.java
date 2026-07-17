@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.util.*;
 
 @RestController
@@ -97,7 +98,10 @@ public class ReservationController {
         }
 
         // Vérification disponibilités
-        String jourDemande = request.getDateHeure().getDayOfWeek().name();
+        String jourDemande = request.getDateHeure()
+                .getDayOfWeek()
+                .getDisplayName(TextStyle.FULL, Locale.FRENCH)
+                .toUpperCase();
         LocalTime heureDemande = request.getDateHeure().toLocalTime();
         List<Disponibilite> dispoList = disponibiliteRepository.findByPrestataire(prestataire);
         boolean dispoOk = dispoList.stream().anyMatch(d ->
