@@ -97,7 +97,7 @@ interface ApiService {
     ): Response<Unit>
 
     @GET("/api/prestataires/{id}/revenue/week")
-    suspend fun getWeeklyRevenue(@Path("id") id: Long): List<DailyRevenue>
+    suspend fun getWeeklyRevenue(@Path("id") id: Long): Response<List<DailyRevenue>>
 
     // Disponibilités
     @GET("/api/prestataires/{prestataireId}/disponibilites")

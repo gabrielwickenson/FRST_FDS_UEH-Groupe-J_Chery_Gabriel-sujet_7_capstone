@@ -53,9 +53,16 @@ class PrestataireRepository(private val context: Context) {
 
     suspend fun getWeeklyRevenue(prestataireId: Long): List<DailyRevenue>? {
         return try {
-            RetrofitInstance.getApi(context).getWeeklyRevenue(prestataireId)
+            val response = RetrofitInstance.getApi(context).getWeeklyRevenue(prestataireId)
+            Log.d("PrestataireRepo", "📊 getWeeklyRevenue - code: ${response.code()}, size: ${response.body()?.size}")
+            if (response.isSuccessful) {
+                response.body()
+            } else {
+                Log.e("PrestataireRepo", "❌ Erreur : ${response.errorBody()?.string()}")
+                null
+            }
         } catch (e: Exception) {
-            Log.e("PrestataireRepo", "❌ getWeeklyRevenue échoué pour prestataire $prestataireId", e)
+            Log.e("PrestataireRepo", "❌ Exception", e)
             null
         }
     }

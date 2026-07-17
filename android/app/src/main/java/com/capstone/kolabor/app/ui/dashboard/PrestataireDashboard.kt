@@ -111,6 +111,7 @@ fun PrestataireDashboard(onLogout: () -> Unit,
             // Revenus
             try {
                 weeklyRevenue = prestataireRepo.getWeeklyRevenue(userId) ?: emptyList()
+                Log.d("Prestataire", "📊 Revenus bruts : ${weeklyRevenue.map { it.day to it.amount }}")
             } catch (e: Exception) {
                 Log.e("Prestataire", "Erreur revenus", e)
                 weeklyRevenue = emptyList()

@@ -31,10 +31,8 @@ fun RevenueChart(
     data: Map<String, Double>, // Jour -> Revenu
     modifier: Modifier = Modifier
 ) {
-    // ✅ Filtrer les valeurs nulles ou négatives
-    val validData = data.filterValues { it > 0.0 }
-
-    if (validData.isEmpty()) {
+    // ✅ Si aucune donnée du tout, afficher un message
+    if (data.isEmpty()) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
@@ -51,8 +49,10 @@ fun RevenueChart(
         return
     }
 
+    // ✅ Garder toutes les valeurs (même 0) pour afficher des barres
+    val validData = data
     val totalRevenue = validData.values.sum()
-    val maxValue = validData.values.maxOrNull() ?: 1.0   // ✅ maxValue jamais nul
+    val maxValue = validData.values.maxOrNull() ?: 1.0   // Si toutes les valeurs sont 0, max = 1.0
     val days = validData.keys.toList()
     val values = validData.values.toList()
 
@@ -60,8 +60,9 @@ fun RevenueChart(
     val animatedHeights = remember { values.map { Animatable(0f) } }
     LaunchedEffect(Unit) {
         animatedHeights.forEachIndexed { index, anim ->
+            val target = if (maxValue > 0) (values[index] / maxValue).toFloat() else 0f
             anim.animateTo(
-                targetValue = (values[index] / maxValue).toFloat().coerceIn(0f, 1f),
+                targetValue = target.coerceIn(0f, 1f),
                 animationSpec = tween(durationMillis = 600, delayMillis = index * 60)
             )
         }
@@ -132,10 +133,12 @@ fun RevenueChart(
 
                     days.forEachIndexed { index, day ->
                         val x = index * (barWidth + spacing) + spacing / 2
-                        val height = animatedHeights[index].value * canvasHeight * 0.85f
+                        // ✅ Hauteur minimale de 4dp pour les barres à 0
+                        val rawHeight = animatedHeights[index].value * canvasHeight * 0.85f
+                        val height = maxOf(rawHeight, 4.dp.toPx())
                         val y = canvasHeight - height
 
-                        val isMax = values[index] == maxValue
+                        val isMax = values[index] == maxValue && maxValue > 0
                         val barColor = if (isMax) GreenPrimary else NavyPrimary.copy(alpha = 0.7f)
 
                         drawRoundRect(
