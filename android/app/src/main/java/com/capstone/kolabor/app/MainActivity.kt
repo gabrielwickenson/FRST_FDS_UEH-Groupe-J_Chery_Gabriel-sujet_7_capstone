@@ -1,11 +1,14 @@
 package com.kolabor.app
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,9 +38,24 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            Log.d("Notifications", "✅ Permission de notification accordée")
+        } else {
+            Log.d("Notifications", "❌ Permission de notification refusée")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         setContent {
             KolaborApp()
         }
@@ -51,29 +69,21 @@ fun KolaborApp() {
     val tokenManager = remember { TokenManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    // États de navigation globaux
+    // États de navigation
     val showOnboarding = remember { mutableStateOf(true) }
     val showLogin = remember { mutableStateOf(false) }
     val showRegister = remember { mutableStateOf(false) }
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
-    val clientId = remember { mutableStateOf<Long?>(null) }
+    val userId = remember { mutableStateOf<Long?>(null) } // ✅ Renommé pour tous les rôles
 
-    // États pour le ClientDashboard
+    // États pour ClientDashboard
     val clientTab = remember { mutableStateOf(0) }
-
-    // États pour le détail du prestataire
     val showPrestataireDetail = remember { mutableStateOf(false) }
     val selectedPrestataire = remember { mutableStateOf<Prestataire?>(null) }
-
-    // États pour le Bottom Sheet de réservation
     val showBookingBottomSheet = remember { mutableStateOf(false) }
     val selectedPrestataireForBooking = remember { mutableStateOf<Prestataire?>(null) }
-
-    // États pour la liste des réservations
     val showReservations = remember { mutableStateOf(false) }
-
-    // États pour le détail d'une réservation
     val showReservationDetail = remember { mutableStateOf(false) }
     val selectedReservation = remember { mutableStateOf<Reservation?>(null) }
 
@@ -85,9 +95,8 @@ fun KolaborApp() {
                 userRole.value = role
                 isLoggedIn.value = true
                 showOnboarding.value = false
-                if (role == "CLIENT") {
-                    clientId.value = tokenManager.getUserId() ?: 0L
-                }
+                // ✅ Récupérer l'ID pour TOUS les rôles
+                userId.value = tokenManager.getUserId() ?: 0L
             }
         }
     }
@@ -97,7 +106,6 @@ fun KolaborApp() {
 
     KolaborTheme {
         Box(modifier = Modifier.fillMaxSize()) {
-            // ─── CONTENU PRINCIPAL ───
             when {
                 isLoggedIn.value && userRole.value != null -> {
                     when (userRole.value) {
@@ -123,22 +131,18 @@ fun KolaborApp() {
                                                 tokenManager.clearSession()
                                                 isLoggedIn.value = false
                                                 userRole.value = null
-                                                clientId.value = null
+                                                userId.value = null
                                                 showLogin.value = true
                                             }
                                         },
-                                        clientId = clientId.value ?: 0L,
+                                        clientId = userId.value ?: 0L,
                                         onNavigateToBook = { /* géré ailleurs */ },
                                         showPrestataireDetail = showPrestataireDetail,
                                         selectedPrestataire = selectedPrestataire,
                                         currentTab = clientTab,
-                                        onTabChanged = { newTab ->
-                                            clientTab.value = newTab
-                                        },
+                                        onTabChanged = { newTab -> clientTab.value = newTab },
                                         onNavigateToReservations = {
                                             coroutineScope.launch {
-                                                val id = tokenManager.getUserId()
-                                                clientId.value = id ?: 0L
                                                 showReservations.value = true
                                             }
                                         }
@@ -147,15 +151,18 @@ fun KolaborApp() {
                             }
                         }
                         "PRESTATAIRE" -> {
+                            // ✅ PASSER L'ID ICI
                             PrestataireDashboard(
                                 onLogout = {
                                     coroutineScope.launch {
                                         tokenManager.clearSession()
                                         isLoggedIn.value = false
                                         userRole.value = null
+                                        userId.value = null
                                         showLogin.value = true
                                     }
-                                }
+                                },
+                                userId = userId.value ?: 0L   // ← ID passé !
                             )
                         }
                         else -> {
@@ -173,16 +180,18 @@ fun KolaborApp() {
                     )
                 }
                 showLogin.value -> {
+                    // ✅ Signature corrigée : onLoginSuccess reçoit (role, id)
                     LoginScreen(
-                        onLoginSuccess = { role ->
+                        onLoginSuccess = { role, id ->
+                            Log.d("MainActivity", "✅ Rôle : $role, ID : $id")
                             userRole.value = role
                             isLoggedIn.value = true
                             showLogin.value = false
+                            userId.value = id
+                            // Sauvegarder dans TokenManager pour les autres usages
                             coroutineScope.launch {
-                                val id = tokenManager.getUserId()
-                                if (id != null && role == "CLIENT") {
-                                    clientId.value = id
-                                }
+                                tokenManager.saveUserId(id)
+                                tokenManager.saveUserRole(role)
                             }
                         },
                         onNavigateToRegister = {
@@ -208,54 +217,34 @@ fun KolaborApp() {
                 }
             }
 
-            // ─── OVERLAY : LISTE DES RÉSERVATIONS ───
+            // Overlays (inchangés)
             if (showReservations.value) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White)
-                ) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
                     ReservationsScreen(
-                        onBack = {
-                            showReservations.value = false
-                        },
-                        clientId = clientId.value ?: 0L,
+                        onBack = { showReservations.value = false },
+                        clientId = userId.value ?: 0L,
                         onReservationClick = { reservation ->
-                            // ✅ Ceci est exécuté quand on clique sur une carte
-                            Toast.makeText(context, "Callback overlay: ${reservation.id}", Toast.LENGTH_SHORT).show()
-                            Log.d("MainActivity", "1. Callback: ${reservation.id}")
                             selectedReservation.value = reservation
-                            Log.d("MainActivity", "2. selectedReservation = ${selectedReservation.value?.id}")
                             showReservationDetail.value = true
-                            Log.d("MainActivity", "3. showReservationDetail = ${showReservationDetail.value}")
                             showReservations.value = false
-                            Log.d("MainActivity", "4. showReservations = ${showReservations.value}")
                         }
                     )
                 }
             }
 
-            // ─── OVERLAY : DÉTAIL D'UNE RÉSERVATION ───
             if (showReservationDetail.value && selectedReservation.value != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White)
-                ) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
                     ReservationDetailScreen(
                         reservation = selectedReservation.value!!,
-                        clientId = clientId.value ?: 0L,
+                        clientId = userId.value ?: 0L,
                         onBack = {
                             showReservationDetail.value = false
                             selectedReservation.value = null
-                            // Optionnel : rouvrir la liste
-                            // showReservations.value = true
                         },
                         onCancel = {
                             showReservationDetail.value = false
                             selectedReservation.value = null
                             Toast.makeText(context, "Réservation annulée", Toast.LENGTH_LONG).show()
-                            // Recharger la liste si besoin
                         },
                         onReview = {
                             Toast.makeText(context, "Ouvrir le formulaire d'avis", Toast.LENGTH_SHORT).show()
@@ -264,46 +253,32 @@ fun KolaborApp() {
                 }
             }
 
-            // ─── BOTTOM SHEET DE RÉSERVATION (pour la réservation d'un prestataire) ───
             if (showBookingBottomSheet.value && selectedPrestataireForBooking.value != null) {
                 ModalBottomSheet(
-                    onDismissRequest = {
-                        showBookingBottomSheet.value = false
-                    },
+                    onDismissRequest = { showBookingBottomSheet.value = false },
                     sheetState = rememberModalBottomSheetState(),
                     containerColor = Color.White,
                     dragHandle = {
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .width(40.dp)
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(Gray300)
+                                modifier = Modifier.width(40.dp).height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)).background(Gray300)
                             )
                         }
                     }
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(screenHeight * 0.75f)
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth().height(screenHeight * 0.75f)) {
                         BookScreen(
-                            onBack = {
-                                showBookingBottomSheet.value = false
-                            },
+                            onBack = { showBookingBottomSheet.value = false },
                             onBookingSuccess = {
                                 showBookingBottomSheet.value = false
                                 Toast.makeText(context, "Réservation réussie !", Toast.LENGTH_LONG).show()
                             },
                             prestataire = selectedPrestataireForBooking.value!!,
-                            clientId = clientId.value ?: 0L
+                            clientId = userId.value ?: 0L
                         )
                     }
                 }

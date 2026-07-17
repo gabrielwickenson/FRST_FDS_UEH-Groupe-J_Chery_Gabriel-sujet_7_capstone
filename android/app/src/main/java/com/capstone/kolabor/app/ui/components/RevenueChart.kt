@@ -18,14 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.capstone.serviceplatform.app.ui.theme.*
 import kotlin.math.roundToInt
 
@@ -34,7 +31,10 @@ fun RevenueChart(
     data: Map<String, Double>, // Jour -> Revenu
     modifier: Modifier = Modifier
 ) {
-    if (data.isEmpty()) {
+    // ✅ Filtrer les valeurs nulles ou négatives
+    val validData = data.filterValues { it > 0.0 }
+
+    if (validData.isEmpty()) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
@@ -43,7 +43,7 @@ fun RevenueChart(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Aucune donnée disponible",
+                text = "Aucune donnée de revenus disponible",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Gray500
             )
@@ -51,17 +51,17 @@ fun RevenueChart(
         return
     }
 
-    val totalRevenue = data.values.sum()
-    val maxValue = data.values.maxOrNull() ?: 1.0
-    val days = data.keys.toList()
-    val values = data.values.toList()
+    val totalRevenue = validData.values.sum()
+    val maxValue = validData.values.maxOrNull() ?: 1.0   // ✅ maxValue jamais nul
+    val days = validData.keys.toList()
+    val values = validData.values.toList()
 
-    // Animation des hauteurs
+    // Animation protégée
     val animatedHeights = remember { values.map { Animatable(0f) } }
     LaunchedEffect(Unit) {
         animatedHeights.forEachIndexed { index, anim ->
             anim.animateTo(
-                targetValue = (values[index] / maxValue).toFloat(),
+                targetValue = (values[index] / maxValue).toFloat().coerceIn(0f, 1f),
                 animationSpec = tween(durationMillis = 600, delayMillis = index * 60)
             )
         }
@@ -70,20 +70,12 @@ fun RevenueChart(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(16.dp),
-                clip = false
-            ),
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(16.dp), clip = false),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // --- En-tête ---
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // En-tête
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,7 +95,6 @@ fun RevenueChart(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                // Badge tendance (simulé)
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = GreenPrimary.copy(alpha = 0.12f)
@@ -124,7 +115,7 @@ fun RevenueChart(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- Graphique ---
+            // Graphique
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -136,21 +127,17 @@ fun RevenueChart(
                     val canvasWidth = size.width
                     val canvasHeight = size.height
 
-                    // Barres fines : largeur = 30% de l'espace dispo
                     val barWidth = (canvasWidth / days.size) * 0.30f
                     val spacing = (canvasWidth / days.size) * 0.70f
 
-                    // Dessiner chaque barre
                     days.forEachIndexed { index, day ->
                         val x = index * (barWidth + spacing) + spacing / 2
                         val height = animatedHeights[index].value * canvasHeight * 0.85f
                         val y = canvasHeight - height
 
-                        // Couleur dégradée selon la valeur
                         val isMax = values[index] == maxValue
                         val barColor = if (isMax) GreenPrimary else NavyPrimary.copy(alpha = 0.7f)
 
-                        // Barre
                         drawRoundRect(
                             color = barColor,
                             topLeft = Offset(x, y),
@@ -161,7 +148,6 @@ fun RevenueChart(
                             )
                         )
 
-                        // Valeur au-dessus (uniquement si > 0)
                         if (values[index] > 0) {
                             drawContext.canvas.nativeCanvas.apply {
                                 val paint = android.graphics.Paint().apply {
@@ -179,7 +165,6 @@ fun RevenueChart(
                             }
                         }
 
-                        // Libellé du jour (plus petit, plus fin)
                         drawContext.canvas.nativeCanvas.apply {
                             val paint = android.graphics.Paint().apply {
                                 color = android.graphics.Color.parseColor("#9CA3AF")
@@ -196,7 +181,6 @@ fun RevenueChart(
                         }
                     }
 
-                    // Ligne de base (fine, pointillée)
                     val dashPathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
                     drawLine(
                         color = Gray200,
@@ -210,7 +194,7 @@ fun RevenueChart(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // --- Légende ---
+            // Légende
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,

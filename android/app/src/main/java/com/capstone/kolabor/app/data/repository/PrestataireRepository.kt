@@ -1,6 +1,7 @@
 package com.capstone.kolabor.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.capstone.kolabor.app.data.api.RetrofitInstance
 import com.capstone.kolabor.app.data.model.AvailabilityRequest
 import com.capstone.kolabor.app.data.model.DailyRevenue
@@ -25,21 +26,27 @@ class PrestataireRepository(private val context: Context) {
 
     suspend fun getStatistiques(prestataireId: Long): Map<String, Any>? {
         return try {
-            RetrofitInstance.getApi(context).getStatistiques(prestataireId)
+            Log.d("PrestataireRepo", "📊 getStatistiques - ID: $prestataireId")
+            val result = RetrofitInstance.getApi(context).getStatistiques(prestataireId)
+            Log.d("PrestataireRepo", "📊 getStatistiques - succès")
+            result
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("PrestataireRepo", "❌ getStatistiques", e)
             null
         }
     }
 
     suspend fun updateAvailability(prestataireId: Long, disponible: Boolean): Boolean {
         return try {
-            val response = RetrofitInstance.getApi(context).updateAvailability(prestataireId,
+            // La méthode updateAvailability retourne un objet (probablement Unit)
+            // Si elle ne lance pas d'exception, on considère que c'est un succès.
+            RetrofitInstance.getApi(context).updateAvailability(
+                prestataireId,
                 AvailabilityRequest(disponible)
             )
-            response.isSuccessful
+            true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("PrestataireRepo", "❌ updateAvailability échoué pour prestataire $prestataireId", e)
             false
         }
     }
@@ -48,12 +55,11 @@ class PrestataireRepository(private val context: Context) {
         return try {
             RetrofitInstance.getApi(context).getWeeklyRevenue(prestataireId)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("PrestataireRepo", "❌ getWeeklyRevenue échoué pour prestataire $prestataireId", e)
             null
         }
     }
 
-    // --- Disponibilités ---
     suspend fun getDisponibilites(prestataireId: Long): List<Disponibilite>? {
         return try {
             RetrofitInstance.getApi(context).getDisponibilites(prestataireId)
@@ -74,8 +80,8 @@ class PrestataireRepository(private val context: Context) {
 
     suspend fun deleteDisponibilite(disponibiliteId: Long): Boolean {
         return try {
-            val response = RetrofitInstance.getApi(context).deleteDisponibilite(disponibiliteId)
-            response.isSuccessful
+            RetrofitInstance.getApi(context).deleteDisponibilite(disponibiliteId)
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             false

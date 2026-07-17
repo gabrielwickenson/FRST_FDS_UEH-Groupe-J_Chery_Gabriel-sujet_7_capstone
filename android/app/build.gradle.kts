@@ -70,6 +70,8 @@ dependencies {
     implementation("com.google.android.material:material:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    implementation("com.google.firebase:firebase-messaging-ktx:23.4.0")
+
     // Réseau
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")

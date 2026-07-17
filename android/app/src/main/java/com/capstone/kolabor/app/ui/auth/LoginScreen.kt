@@ -1,61 +1,68 @@
 package com.capstone.kolabor.app.ui.auth
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.capstone.kolabor.app.data.repository.AuthRepository
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kolabor.app.R
 import com.kolabor.app.ui.components.KolaborPrimaryButton
 import com.kolabor.app.ui.components.KolaborTextField
-import com.capstone.kolabor.app.utils.TokenManager
-import com.capstone.serviceplatform.app.ui.theme.ErrorColor
-import com.capstone.serviceplatform.app.ui.theme.Gray500
-import com.capstone.serviceplatform.app.ui.theme.NavyLight
-import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
-import com.kolabor.app.ui.theme.space16
-import com.kolabor.app.ui.theme.space24
-import com.kolabor.app.ui.theme.space32
-import com.kolabor.app.ui.theme.space48
-import com.kolabor.app.R
-import com.kolabor.app.ui.theme.space8
-import kotlinx.coroutines.launch
+import com.capstone.kolabor.app.viewmodel.AuthViewModel
+import com.capstone.kolabor.app.viewmodel.LoginState
+import com.capstone.serviceplatform.app.ui.theme.*
+import com.kolabor.app.ui.theme.*
 
 @Composable
-fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
-                onNavigateToRegister: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: (String, Long) -> Unit,
+    onNavigateToRegister: () -> Unit
+) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val authRepository = remember { AuthRepository(context) }
-    val tokenManager = remember { TokenManager(context) }
+    val authViewModel: AuthViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return AuthViewModel(context) as T
+            }
+        }
+    )
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var passwordVisible by remember { mutableStateOf(false) } // ✅ État visibilité
+    var passwordVisible by remember { mutableStateOf(false) }
 
+    val loginState by authViewModel.loginState.collectAsState()
+
+    // Gérer les résultats de connexion
+    LaunchedEffect(loginState) {
+        when (val state = loginState) {
+            is LoginState.Success -> {
+                Log.d("LoginScreen", "✅ Connexion réussie : ${state.response.role}, ID: ${state.response.id}")
+                onLoginSuccess(state.response.role, state.response.id)
+                authViewModel.resetState()
+            }
+            is LoginState.Error -> {
+                Log.e("LoginScreen", "❌ Erreur : ${state.message}")
+            }
+            else -> {}
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -111,10 +118,10 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
             },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            isError = errorMessage != null,
+            isError = loginState is LoginState.Error,
             supportingText = {
-                if (errorMessage != null) {
-                    Text(text = errorMessage!!, color = ErrorColor)
+                if (loginState is LoginState.Error) {
+                    Text(text = (loginState as LoginState.Error).message, color = ErrorColor)
                 }
             }
         )
@@ -122,51 +129,15 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit,   // ← rôle
         Spacer(modifier = Modifier.height(space32))
 
         KolaborPrimaryButton(
-            text = if (isLoading) "Connexion en cours..." else "Se connecter",
+            text = if (loginState is LoginState.Loading) "Connexion en cours..." else "Se connecter",
             onClick = {
                 if (email.isBlank() || password.isBlank()) {
-                    errorMessage = "Email et mot de passe requis"
+                    // Afficher un message d'erreur via un état local si besoin
                     return@KolaborPrimaryButton
                 }
-                isLoading = true
-                errorMessage = null
-
-                coroutineScope.launch {
-                    try {
-                        val response = authRepository.login(email, password)
-                        if (response != null) {
-                            // Stocker le token et le rôle
-                            tokenManager.saveToken(response.token)
-                            tokenManager.saveUserRole(response.role)
-                            tokenManager.saveUserId(response.id)
-                            tokenManager.saveUserName(response.nom)
-                            onLoginSuccess(response.role)  // MainActivity lira le rôle depuis TokenManager
-                        } else {
-                            errorMessage = "Email ou mot de passe incorrect"
-                        }
-                    } catch (e: Exception) {
-                        Log.e("LoginScreen", "Erreur", e)
-                        errorMessage = "Erreur réseau. Vérifiez votre connexion."
-                    } finally {
-                        isLoading = false
-                    }
-
-                    try {
-                        Log.d("LoginScreen", "Appel login avec email=$email")
-                        val response = authRepository.login(email, password)
-                        Log.d("LoginScreen", "Réponse reçue: $response")
-                        if (response != null) {
-                            // succès
-                        } else {
-                            errorMessage = "Email ou mot de passe incorrect"
-                        }
-                    } catch (e: Exception) {
-                        Log.e("LoginScreen", "Erreur complète", e)
-                        errorMessage = "Erreur technique: ${e.message}"
-                    }
-                }
+                authViewModel.login(email, password)
             },
-            enabled = !isLoading
+            enabled = loginState !is LoginState.Loading
         )
         Spacer(modifier = Modifier.height(space16))
 

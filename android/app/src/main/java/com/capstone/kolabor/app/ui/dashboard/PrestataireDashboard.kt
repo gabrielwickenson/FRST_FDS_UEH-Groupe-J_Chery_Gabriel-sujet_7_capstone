@@ -1,5 +1,6 @@
 package com.capstone.kolabor.app.ui.dashboard
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,7 +36,8 @@ import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PrestataireDashboard(onLogout: () -> Unit) {
+fun PrestataireDashboard(onLogout: () -> Unit,
+                         userId: Long ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
@@ -60,43 +62,69 @@ fun PrestataireDashboard(onLogout: () -> Unit) {
     var selectedFilter by remember { mutableStateOf("Toutes") }
 
     suspend fun loadDashboardData() {
-        isLoading = true
-        isLoadingRevenue = true
-        errorMessage = null
+        try {
+            isLoading = true
+            isLoadingRevenue = true
+            errorMessage = null
 
-        val userId = tokenManager.getUserId()
-        if (userId == null) {
-            errorMessage = "Prestataire non identifié"
+            val userId = tokenManager.getUserId()
+            Log.d("Prestataire", "🆔 ID récupéré : $userId")
+            if (userId == null || userId == 0L) {
+                errorMessage = "Prestataire non identifié. Veuillez vous reconnecter."
+                reservations = emptyList()
+                weeklyRevenue = emptyList()
+                isLoading = false
+                isLoadingRevenue = false
+                return
+            }
+
+            prestataireId = userId
+
+            // Statistiques
+            try {
+                val stats = prestataireRepo.getStatistiques(userId)
+                if (stats != null) {
+                    val availabilityValue = stats["disponible"] ?: stats["available"]
+                    isAvailable = when (availabilityValue) {
+                        is Boolean -> availabilityValue
+                        is Number -> availabilityValue.toInt() != 0
+                        is String -> availabilityValue.equals("true", ignoreCase = true)
+                        else -> isAvailable
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("Prestataire", "Erreur statistiques", e)
+            }
+
+            // Réservations
+            try {
+                val reservationData = reservationRepo.getReservationsByPrestataire(userId)
+                reservations = reservationData ?: emptyList()
+                totalCount = reservations.size
+                pendingCount = reservations.count { it.statut == "EN_ATTENTE" }
+                completedCount = reservations.count { it.statut == "TERMINEE" }
+            } catch (e: Exception) {
+                Log.e("Prestataire", "Erreur réservations", e)
+                reservations = emptyList()
+            }
+
+            // Revenus
+            try {
+                weeklyRevenue = prestataireRepo.getWeeklyRevenue(userId) ?: emptyList()
+            } catch (e: Exception) {
+                Log.e("Prestataire", "Erreur revenus", e)
+                weeklyRevenue = emptyList()
+            }
+
+        } catch (e: Exception) {
+            Log.e("Prestataire", "❌ Erreur fatale dans loadDashboardData", e)
+            errorMessage = "Erreur de chargement : ${e.message}"
             reservations = emptyList()
             weeklyRevenue = emptyList()
+        } finally {
             isLoading = false
             isLoadingRevenue = false
-            return
         }
-
-        prestataireId = userId
-
-        val stats = prestataireRepo.getStatistiques(userId)
-        if (stats != null) {
-            val availabilityValue = stats["disponible"] ?: stats["available"]
-            isAvailable = when (availabilityValue) {
-                is Boolean -> availabilityValue
-                is Number -> availabilityValue.toInt() != 0
-                is String -> availabilityValue.equals("true", ignoreCase = true)
-                else -> isAvailable
-            }
-        }
-
-        val reservationData = reservationRepo.getReservationsByPrestataire(userId)
-        reservations = reservationData ?: emptyList()
-        totalCount = reservations.size
-        pendingCount = reservations.count { it.statut == "EN_ATTENTE" }
-        completedCount = reservations.count { it.statut == "TERMINEE" }
-
-        weeklyRevenue = prestataireRepo.getWeeklyRevenue(userId) ?: emptyList()
-
-        isLoading = false
-        isLoadingRevenue = false
     }
 
     LaunchedEffect(Unit) {
@@ -205,10 +233,15 @@ fun PrestataireDashboard(onLogout: () -> Unit) {
                                         Switch(
                                             checked = isAvailable,
                                             onCheckedChange = { newStatus ->
+                                                val id = prestataireId
+                                                if (id == null || id == 0L) {
+                                                    Toast.makeText(context, "Prestataire non identifié", Toast.LENGTH_SHORT).show()
+                                                    return@Switch
+                                                }
                                                 isUpdatingAvailability = true
                                                 coroutineScope.launch {
                                                     try {
-                                                        val success = prestataireRepo.updateAvailability(prestataireId ?: 0L, newStatus)
+                                                        val success = prestataireRepo.updateAvailability(id, newStatus)
                                                         if (success) {
                                                             isAvailable = newStatus
                                                             Toast.makeText(
@@ -219,6 +252,8 @@ fun PrestataireDashboard(onLogout: () -> Unit) {
                                                         } else {
                                                             Toast.makeText(context, "Erreur lors de la mise à jour", Toast.LENGTH_SHORT).show()
                                                         }
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "Erreur réseau", Toast.LENGTH_SHORT).show()
                                                     } finally {
                                                         isUpdatingAvailability = false
                                                     }
