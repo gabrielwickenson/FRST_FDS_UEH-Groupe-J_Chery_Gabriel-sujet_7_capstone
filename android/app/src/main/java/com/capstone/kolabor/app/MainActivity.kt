@@ -31,11 +31,15 @@ import com.kolabor.app.ui.theme.KolaborTheme
 import com.capstone.kolabor.app.utils.TokenManager
 import com.capstone.kolabor.app.data.model.Prestataire
 import com.capstone.kolabor.app.data.model.Reservation
+import com.capstone.kolabor.app.data.repository.UserRepository
 import com.capstone.serviceplatform.app.ui.theme.Gray300
-import com.kolabor.app.ui.theme.*
 import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import com.google.firebase.messaging.FirebaseMessaging
+import com.google.android.gms.tasks.Task
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
@@ -54,6 +58,38 @@ class MainActivity : ComponentActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // Récupérer l'ID utilisateur depuis TokenManager (qui doit être initialisé)
+        // Cela nécessite un contexte, et TokenManager est déjà défini plus tard dans KolaborApp.
+        // Pour simplifier, on utilise un CoroutineScope global.
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                Log.d("FCM", "🔥 Token : $token")
+                Toast.makeText(this, "Token FCM récupéré", Toast.LENGTH_SHORT).show()
+
+                // Envoyer le token au backend
+                GlobalScope.launch(Dispatchers.IO) {
+                    val tokenManager = TokenManager(applicationContext)
+                    val userId = tokenManager.getUserId()
+                    Log.d("FCM", "📋 ID utilisateur : $userId")
+                    if (userId != null && userId != 0L) {
+                        val userRepo = UserRepository(applicationContext)
+                        val success = userRepo.updateFcmToken(userId, token)
+                        if (success) {
+                            Log.d("FCM", "✅ Token envoyé au backend")
+                        } else {
+                            Log.e("FCM", "❌ Échec envoi token (backend)")
+                        }
+                    } else {
+                        Log.e("FCM", "❌ ID utilisateur null ou 0, impossible d'envoyer")
+                    }
+                }
+            } else {
+                Log.w("FCM", "Échec token", task.exception)
+                Toast.makeText(this, "Erreur FCM", Toast.LENGTH_SHORT).show()
+            }
         }
 
         setContent {
@@ -86,16 +122,17 @@ fun KolaborApp() {
     val showReservations = remember { mutableStateOf(false) }
     val showReservationDetail = remember { mutableStateOf(false) }
     val selectedReservation = remember { mutableStateOf<Reservation?>(null) }
+    val userRepository = remember { UserRepository(context) }
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
+        // Chargement de la session
         tokenManager.getUserRole().collectLatest { role ->
             val token = tokenManager.getToken()
             if (role != null && token != null) {
                 userRole.value = role
                 isLoggedIn.value = true
                 showOnboarding.value = false
-                // ✅ Récupérer l'ID pour TOUS les rôles
                 userId.value = tokenManager.getUserId() ?: 0L
             }
         }

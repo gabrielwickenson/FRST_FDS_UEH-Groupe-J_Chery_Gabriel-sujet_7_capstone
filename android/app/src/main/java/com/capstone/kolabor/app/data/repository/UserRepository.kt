@@ -98,4 +98,14 @@ class UserRepository(private val context: Context) {
             return it.getString(columnIndex)
         } ?: return uri.path ?: ""
     }
+
+    suspend fun updateFcmToken(userId: Long, token: String): Boolean {
+        return try {
+            val response = RetrofitInstance.getApi(context).updateFcmToken(token, userId)
+            response.isSuccessful
+        } catch (e: Exception) {
+            Log.e("UserRepo", "Erreur updateFcmToken", e)
+            false
+        }
+    }
 }

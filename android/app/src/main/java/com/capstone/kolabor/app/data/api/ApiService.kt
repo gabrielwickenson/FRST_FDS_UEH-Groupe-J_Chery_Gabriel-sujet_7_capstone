@@ -128,4 +128,10 @@ interface ApiService {
         @Path("id") id: Long,
         @Part file: MultipartBody.Part
     ): Response<Map<String, String>>
+
+    @PUT("/api/users/fcm-token")
+    suspend fun updateFcmToken(
+        @Query("fcmToken") token: String,
+        @Query("userId") userId: Long
+    ): Response<Unit>
 }
