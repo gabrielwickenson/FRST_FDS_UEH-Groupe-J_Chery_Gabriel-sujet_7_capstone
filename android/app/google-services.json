@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "936983830153",
+    "project_id": "serviceplatform-f6a98",
+    "storage_bucket": "serviceplatform-f6a98.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:936983830153:android:6eeb2b47528114eead7058",
+        "android_client_info": {
+          "package_name": "com.kolabor.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJADq4uzM3_BU9ywOuPoeFIh9jgpS0jCQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

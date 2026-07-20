@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.util.*;
 
 @RestController
@@ -97,7 +98,10 @@ public class ReservationController {
         }
 
         // Vérification disponibilités
-        String jourDemande = request.getDateHeure().getDayOfWeek().name();
+        String jourDemande = request.getDateHeure()
+                .getDayOfWeek()
+                .getDisplayName(TextStyle.FULL, Locale.FRENCH)
+                .toUpperCase();
         LocalTime heureDemande = request.getDateHeure().toLocalTime();
         List<Disponibilite> dispoList = disponibiliteRepository.findByPrestataire(prestataire);
         boolean dispoOk = dispoList.stream().anyMatch(d ->
@@ -440,6 +444,17 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(avis);
     }
 
+    @GetMapping("/{id}/avis")
+    @Operation(summary = "Récupérer tous les avis d'un prestataire")
+    public ResponseEntity<List<Avis>> getAvisByPrestataire(@PathVariable Long id) {
+        // Vérifier que le prestataire existe
+        if (!prestataireRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        List<Avis> avis = avisRepository.findByReservationPrestataireId(id);
+        return ResponseEntity.ok(avis);
+    }
+    
     // -------------------- LITIGES --------------------
     @PostMapping("/{id}/litige")
     @Operation(summary = "Ouvrir un litige (client)")
