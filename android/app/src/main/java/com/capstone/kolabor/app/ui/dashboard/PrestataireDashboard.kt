@@ -33,6 +33,18 @@ import com.capstone.serviceplatform.app.ui.theme.*
 import kotlinx.coroutines.launch
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.flow.collectLatest
+import com.capstone.kolabor.app.utils.LocalNotificationManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +72,9 @@ fun PrestataireDashboard(onLogout: () -> Unit,
     var selectedReservation by remember { mutableStateOf<Reservation?>(null) }
     var showDetailSheet by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Toutes") }
+    val notificationManager = LocalNotificationManager
+    val notifications by notificationManager.notifications.collectAsState()
+    var showNotificationsSheet by remember { mutableStateOf(false) }
 
     suspend fun loadDashboardData() {
         try {
@@ -139,11 +154,38 @@ fun PrestataireDashboard(onLogout: () -> Unit,
     }
 
     Scaffold(
+        // Modifier le TopAppBar :
         topBar = {
             TopAppBar(
                 title = { Text("Kolabor Pro", style = MaterialTheme.typography.titleLarge, color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
+                    // ✅ NOUVEAU : Icône de notifications
+                    IconButton(onClick = { showNotificationsSheet = true }) {
+                        BadgedBox(
+                            badge = {
+                                val unreadCount = notifications.count { !it.isRead }
+                                if (unreadCount > 0) {
+                                    Badge(
+                                        containerColor = ErrorColor,
+                                        contentColor = Color.White
+                                    ) {
+                                        Text(
+                                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    // Bouton de déconnexion existant
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = Color.White)
                     }
@@ -599,6 +641,119 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                     }
                 )
             }
+
+            // À la fin du Box (après les autres overlays), ajouter le Bottom Sheet :
+            if (showNotificationsSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = {
+                        showNotificationsSheet = false
+                        notificationManager.markAllAsRead() // Marquer tout comme lu
+                    },
+                    containerColor = Color.White,
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    dragHandle = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(40.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Gray300)
+                            )
+                        }
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                    ) {
+                        // En-tête
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Notifications",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = NavyPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (notifications.isNotEmpty()) {
+                                TextButton(onClick = { notificationManager.clearAll() }) {
+                                    Text("Tout effacer", color = ErrorColor)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (notifications.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Notifications,
+                                        contentDescription = null,
+                                        tint = Gray300,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Aucune notification", color = Gray500)
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.height(400.dp)
+                            ) {
+                                items(notifications) { notification ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (notification.isRead) Color.White else Gray50
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text(
+                                                text = notification.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = NavyPrimary,
+                                                fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = notification.body,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Gray600
+                                            )
+                                            Text(
+                                                text = SimpleDateFormat(
+                                                    "dd/MM/yyyy HH:mm",
+                                                    Locale.getDefault()
+                                                )
+                                                    .format(Date(notification.timestamp)),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Gray400
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
         }
     }
 }
