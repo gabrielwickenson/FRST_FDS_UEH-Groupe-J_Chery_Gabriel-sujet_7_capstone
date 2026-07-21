@@ -1,200 +1,248 @@
 package com.capstone.kolabor.app.ui.onboarding
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.ThumbUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.capstone.kolabor.app.data.OnboardingItem
-import com.capstone.serviceplatform.app.ui.theme.Gray300
-import com.capstone.serviceplatform.app.ui.theme.Gray500
+import androidx.compose.ui.unit.sp
 import com.capstone.serviceplatform.app.ui.theme.NavyPrimary
-import com.kolabor.app.ui.theme.KolaborTheme
-import com.kolabor.app.ui.theme.space16
-import com.kolabor.app.ui.theme.space24
-import com.kolabor.app.ui.theme.space32
-import com.kolabor.app.ui.theme.space48
-import com.kolabor.app.ui.theme.space8
+import com.kolabor.app.R
 import kotlinx.coroutines.launch
+
+private val NavyPrimary = Color(0xFF19355F)
+private val Slate900 = Color(0xFF0F172A)
+private val Slate500 = Color(0xFF64748B)
+private val Slate300 = Color(0xFFCBD5E1)
+
+data class OnboardingItem(
+    val title: String,
+    val description: String,
+    val illustrationRes: Int
+)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
     onGetStarted: () -> Unit
 ) {
-    val items = listOf(
-        OnboardingItem(
-            title = "Trouvez le bon professionnel",
-            description = "Recherchez parmi des centaines de prestataires qualifiés, près de chez vous, pour tous vos services à domicile.",
-            icon = Icons.Outlined.Search
-        ),
-        OnboardingItem(
-            title = "Réservez en toute simplicité",
-            description = "Choisissez votre prestataire, fixez la date et l'heure, et validez votre réservation en quelques clics.",
-            icon = Icons.Outlined.DateRange
-        ),
-        OnboardingItem(
-            title = "Une communauté de confiance",
-            description = "Notation, avis, litiges : Kolabor garantit la transparence et la fiabilité entre clients et prestataires.",
-            icon = Icons.Outlined.ThumbUp
+    val items = remember {
+        listOf(
+            OnboardingItem(
+                title = "Trouvez le bon professionnel",
+                description = "Recherchez parmi des prestataires qualifiés, près de chez vous, pour tous vos services à domicile.",
+                illustrationRes = R.drawable.onboarding_1
+            ),
+            OnboardingItem(
+                title = "Réservez en toute simplicité",
+                description = "Choisissez votre prestataire, fixez la date et l'heure, et validez votre réservation en quelques clics.",
+                illustrationRes = R.drawable.onboarding_2
+            ),
+            OnboardingItem(
+                title = "Une communauté de confiance",
+                description = "Notation, avis, litiges : Kolabor garantit transparence et fiabilité entre clients et prestataires.",
+                illustrationRes = R.drawable.onboarding_3
+            )
         )
-    )
+    }
 
     val pagerState = rememberPagerState(pageCount = { items.size })
     val coroutineScope = rememberCoroutineScope()
-    val currentPage = pagerState.currentPage
 
-    KolaborTheme {
-        Column(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Slate900)
+    ) {
+        // --- ZONE SUPÉRIEURE : LE PAGER FLUIDE ---
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-                .padding(horizontal = space24, vertical = space48),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // --- Ligne avec "Skip" en haut à droite ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                if (currentPage < items.size - 1) {
-                    TextButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                pagerState.scrollToPage(items.size - 1)
-                            }
-                        }
-                    ) {
-                        Text(
-                            text = "Skip",
-                            color = Gray500,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(space32))
-
-            // --- Pager avec les 3 écrans ---
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(1f)
-            ) { page ->
-                val item = items[page]
-                Column(
+                .fillMaxWidth()
+                .fillMaxHeight(0.68f)
+        ) { page ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = items[page].illustrationRes),
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Icône
-                    Image(
-                        imageVector = item.icon,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(180.dp)
-                            .background(Gray300, CircleShape)
-                            .padding(space24)
-                    )
-
-                    Spacer(modifier = Modifier.height(space32))
-
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = NavyPrimary,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(space16))
-
-                    Text(
-                        text = item.description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Gray500,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            // --- Indicateurs (dots) ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = space16),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                repeat(items.size) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (pagerState.currentPage == index) NavyPrimary
-                                else Gray300
+                    contentScale = ContentScale.Crop
+                )
+                // CORRECTION : Utilisation de Color.Transparent au lieu de Transient
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.2f)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Slate900.copy(alpha = 0.4f))
                             )
-                    )
-                    if (index < items.size - 1) {
-                        Spacer(modifier = Modifier.width(space8))
-                    }
-                }
+                        )
+                )
             }
+        }
 
-            Spacer(modifier = Modifier.height(space16))
-
-            // --- Bouton Next / Get Started ---
-            Button(
+        // --- BOUTON PASSER (En haut à droite) ---
+        if (pagerState.currentPage < items.size - 1) {
+            TextButton(
                 onClick = {
-                    if (currentPage == items.size - 1) {
-                        onGetStarted()
-                    } else {
-                        coroutineScope.launch {
-                            pagerState.scrollToPage(currentPage + 1)
-                        }
-                    }
+                    coroutineScope.launch { pagerState.animateScrollToPage(items.size - 1) }
                 },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = NavyPrimary,
-                    contentColor = Color.White
-                )
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = if (currentPage == items.size - 1) "Get Started" else "Next",
-                    style = MaterialTheme.typography.labelLarge
+                    text = "Passer",
+                    color = NavyPrimary,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    modifier = Modifier.shadow(2.dp, CircleShape, clip = false)
                 )
+            }
+        }
+
+        // --- ZONE INFÉRIEURE : FEUILLE BLANCHE ARRONDIE ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.38f)
+                .align(Alignment.BottomCenter)
+                .shadow(
+                    elevation = 24.dp,
+                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                )
+                .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                .background(Color.White)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Barre de préhension (Handlebar)
+                Box(
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(Slate300.copy(alpha = 0.6f))
+                )
+
+                // Groupe Textes
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = items[pagerState.currentPage].title,
+                        style = TextStyle(
+                            fontSize = 24.sp,
+                            lineHeight = 30.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Slate900,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = items[pagerState.currentPage].description,
+                        style = TextStyle(
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp,
+                            color = Slate500,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Pied de page : Points + Bouton
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Les points animés de pagination
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items.forEachIndexed { index, _ ->
+                            val isActive = index == pagerState.currentPage
+
+                            // CORRECTION TECHNIQUE : Syntaxe robuste sans le délégué "by" pour éviter les conflits d'import
+                            val widthAnimation = animateDpAsState(
+                                targetValue = if (isActive) 22.dp else 7.dp,
+                                animationSpec = tween(durationMillis = 300),
+                                label = "dotWidth"
+                            )
+                            val colorAnimation = animateColorAsState(
+                                targetValue = if (isActive) NavyPrimary else Slate300,
+                                animationSpec = tween(durationMillis = 300),
+                                label = "dotColor"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(width = widthAnimation.value, height = 7.dp)
+                                    .clip(CircleShape)
+                                    .background(colorAnimation.value)
+                            )
+                        }
+                    }
+
+                    // CORRECTION : Bouton principal entièrement refermé
+                    Button(
+                        onClick = {
+                            if (pagerState.currentPage == items.size - 1) {
+                                onGetStarted()
+                            } else {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = NavyPrimary),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .height(52.dp)
+                            .widthIn(min = 140.dp),
+                    ) {
+                        Text(
+                            text = if (pagerState.currentPage == items.size - 1) "Commencer" else "Suivant",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
         }
     }
