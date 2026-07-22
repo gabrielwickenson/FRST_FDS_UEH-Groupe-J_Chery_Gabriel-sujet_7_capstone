@@ -8,7 +8,7 @@ data class Prestataire(
     val nom: String,
     val email: String,
     val telephone: String?,
-    val photo: String?,
+    val photo: String? = null,
     val competences: String?,
     @SerializedName("tarifHoraire") val tarifHoraire: BigDecimal?,
     val zoneIntervention: String?,

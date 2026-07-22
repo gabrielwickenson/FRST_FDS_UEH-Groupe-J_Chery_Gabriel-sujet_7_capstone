@@ -28,6 +28,8 @@ import com.kolabor.app.ui.theme.space16
 import com.capstone.kolabor.app.data.model.Disponibilite
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -193,18 +195,28 @@ fun PrestataireDetailScreen(
                             verticalAlignment = Alignment.Top
                         ) {
                             // Photo du client (placeholder)
+                            // Dans PrestataireDetailScreen.kt
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(100.dp)
                                     .clip(CircleShape)
                                     .background(NavyLight.copy(alpha = 0.3f))
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = NavyPrimary,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = "http://10.0.2.2:8080${prestataire.photo}",
+                                        contentDescription = "Photo de ${prestataire.nom}",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = NavyPrimary,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(space12))
                             Column(modifier = Modifier.weight(1f)) {

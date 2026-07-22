@@ -2,6 +2,7 @@ package com.capstone.kolabor.app.ui.dashboard
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -9,10 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import kotlin.collections.filter
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.outlined.Star
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,39 +18,47 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.List
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.capstone.kolabor.app.data.model.FilterOptions
 import com.capstone.kolabor.app.data.model.Prestataire
-import com.kolabor.app.R
+import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.model.Service
 import com.capstone.kolabor.app.data.repository.PrestataireRepository
-import com.capstone.kolabor.app.data.repository.ServiceRepository
-import com.capstone.kolabor.app.ui.client.PrestataireCard
-import com.capstone.kolabor.app.ui.client.ReservationsScreen
-import com.capstone.kolabor.app.ui.client.SearchScreen
-import com.capstone.kolabor.app.ui.client.formatDate
-import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.repository.ReservationRepository
+import com.capstone.kolabor.app.data.repository.ServiceRepository
+import com.capstone.kolabor.app.ui.client.FilterBottomSheet
+import com.capstone.kolabor.app.ui.client.PrestataireCard
+import com.capstone.kolabor.app.ui.client.ReservationDetailScreen
+import com.capstone.kolabor.app.ui.client.ReservationsScreen
+import com.capstone.kolabor.app.ui.client.formatDate
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
+import com.kolabor.app.R
 import com.kolabor.app.ui.theme.*
 import java.math.BigDecimal
-import com.capstone.kolabor.app.data.model.FilterOptions
-import com.capstone.kolabor.app.ui.client.FilterBottomSheet
-import com.capstone.kolabor.app.ui.client.ReservationDetailScreen
-import com.capstone.kolabor.app.ui.dashboard.ProfileScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,12 +66,12 @@ fun ClientDashboard(
     onLogout: () -> Unit,
     clientId: Long,
     onNavigateToBook: (Long) -> Unit,
-    userName: String = "Client",   // ✅ nouveau paramètre
+    userName: String = "Client",
     showPrestataireDetail: MutableState<Boolean>,
     selectedPrestataire: MutableState<Prestataire?>,
-    currentTab: MutableState<Int>,               // ✅ AJOUT
-    onTabChanged: (Int) -> Unit,                 // ✅ AJOUT
-    onNavigateToReservations: () -> Unit         // ✅ AJOUT
+    currentTab: MutableState<Int>,
+    onTabChanged: (Int) -> Unit,
+    onNavigateToReservations: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -75,10 +81,15 @@ fun ClientDashboard(
     var totalReservations by remember { mutableStateOf(0) }
     val prestataireRepo = remember { PrestataireRepository(context) }
     var selectedReservation by remember { mutableStateOf<Reservation?>(null) }
-    var showReservationDetail by remember { mutableStateOf(false) }
+    var unreadNotifications by remember { mutableStateOf(0) }
 
     LaunchedEffect(currentTab.value) {
         selectedTab = currentTab.value
+    }
+
+    LaunchedEffect(Unit) {
+        val data = serviceRepo.getServices()
+        if (data != null) services = data
     }
 
     var selectedServiceFilter by remember { mutableStateOf<String?>(null) }
@@ -90,49 +101,70 @@ fun ClientDashboard(
                     Image(
                         painter = painterResource(id = R.drawable.logo_kolabor_svg),
                         contentDescription = "Logo Kolabor",
-                        modifier = Modifier
-                            .height(32.dp)
-                            .width(120.dp),
+                        modifier = Modifier.height(30.dp).width(110.dp),
                         contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(GreenPrimary) // ✅ Logo en vert sur fond NavyPrimary
+                        colorFilter = ColorFilter.tint(Color.White)
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = "Déconnexion",
-                            tint = Color.White
+                    IconButton(onClick = { /* TODO: navigation notifications */ }) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadNotifications > 0) {
+                                    Badge(containerColor = ErrorColor, contentColor = Color.White) {
+                                        Text(
+                                            text = if (unreadNotifications > 9) "9+" else unreadNotifications.toString(),
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = Color.White)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(space8))
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .clickable {
+                                selectedTab = 3
+                                onTabChanged(3)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = userName.take(1).uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleSmall
                         )
                     }
+                    Spacer(modifier = Modifier.width(space12))
                 }
             )
         },
         bottomBar = {
             NavigationBar(
                 containerColor = Color.White,
-                tonalElevation = 8.dp
+                tonalElevation = 8.dp,
+                modifier = Modifier.height(72.dp)
             ) {
-                val tabs = listOf("Accueil", "Explorer", "Mes réservations", "Profil")
-                val icons = listOf(
-                    Icons.Filled.Home,
-                    Icons.Filled.Search,
-                    Icons.Filled.History,
-                    Icons.Filled.Person
-                )
+                val tabs = listOf("Accueil", "Explorer", "Réservations", "Profil")
+                val icons = listOf(Icons.Outlined.Home, Icons.Outlined.Search, Icons.Outlined.History, Icons.Outlined.Person)
+                val filledIcons = listOf(Icons.Filled.Home, Icons.Filled.Search, Icons.Filled.History, Icons.Filled.Person)
 
                 tabs.forEachIndexed { index, title ->
                     NavigationBarItem(
                         icon = {
-                            // ✅ BADGE SUR L'ICONE "RÉSERVATIONS"
+                            val icon = if (selectedTab == index) filledIcons[index] else icons[index]
                             if (index == 2 && totalReservations > 0) {
                                 BadgedBox(
                                     badge = {
-                                        Badge(
-                                            containerColor = ErrorColor,
-                                            contentColor = Color.White
-                                        ) {
+                                        Badge(containerColor = ErrorColor, contentColor = Color.White) {
                                             Text(
                                                 text = if (totalReservations > 99) "99+" else totalReservations.toString(),
                                                 style = MaterialTheme.typography.labelSmall
@@ -140,26 +172,13 @@ fun ClientDashboard(
                                         }
                                     }
                                 ) {
-                                    Icon(
-                                        icons[index],
-                                        contentDescription = title,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    Icon(icon, contentDescription = title, modifier = Modifier.size(24.dp))
                                 }
                             } else {
-                                Icon(
-                                    icons[index],
-                                    contentDescription = title,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Icon(icon, contentDescription = title, modifier = Modifier.size(24.dp))
                             }
                         },
-                        label = {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        },
+                        label = { Text(text = title, style = MaterialTheme.typography.labelSmall) },
                         selected = selectedTab == index,
                         onClick = {
                             selectedTab = index
@@ -168,8 +187,9 @@ fun ClientDashboard(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NavyPrimary,
                             selectedTextColor = NavyPrimary,
-                            unselectedIconColor = Gray500,
-                            unselectedTextColor = Gray500
+                            unselectedIconColor = Gray400,
+                            unselectedTextColor = Gray400,
+                            indicatorColor = GreenLightest
                         )
                     )
                 }
@@ -179,47 +199,27 @@ fun ClientDashboard(
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             when (selectedTab) {
                 0 -> {
-                    // 🏠 ONGLET ACCUEIL – DASHBOARD CLIENT
                     var searchQuery by remember { mutableStateOf("") }
                     var prestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
                     var isLoadingPrestataires by remember { mutableStateOf(true) }
-                    val prestataireRepo = remember { PrestataireRepository(context) }
 
-                    // États pour la prochaine intervention
                     var nextReservation by remember { mutableStateOf<Reservation?>(null) }
                     var isLoadingNextReservation by remember { mutableStateOf(true) }
                     val reservationRepo = remember { ReservationRepository(context) }
 
-                    // États pour les statistiques
-                    var totalCount by remember { mutableStateOf(0) }
-                    var activeCount by remember { mutableStateOf(0) }
-                    var completedCount by remember { mutableStateOf(0) }
-
-                    // État pour les prestataires recommandés
                     var topPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
                     var isLoadingTop by remember { mutableStateOf(true) }
 
-                    // Chargement des données
                     LaunchedEffect(Unit) {
-                        // Charger les prestataires
                         isLoadingPrestataires = true
                         val data = prestataireRepo.searchPrestataires(service = null, noteMin = null, zone = null)
-                        if (data != null) {
-                            prestataires = data
-                        }
+                        if (data != null) prestataires = data
                         isLoadingPrestataires = false
 
-                        // Charger les réservations (stats + prochaine)
                         isLoadingNextReservation = true
                         val reservations = reservationRepo.getReservationsByClient(clientId)
                         if (reservations != null) {
-                            // Statistiques
-                            totalCount = reservations.size
-                            activeCount = reservations.count { it.statut == "ACCEPTEE" || it.statut == "EN_COURS" }
-                            completedCount = reservations.count { it.statut == "TERMINEE" }
-                            totalReservations = reservations.size // ✅ AJOUTE CETTE LIGNE
-
-                            // Prochaine intervention
+                            totalReservations = reservations.size
                             val active = reservations.filter {
                                 it.statut == "ACCEPTEE" || it.statut == "EN_COURS"
                             }.sortedBy { it.dateHeure }
@@ -227,12 +227,10 @@ fun ClientDashboard(
                         }
                         isLoadingNextReservation = false
 
-                        // Charger les prestataires recommandés (note >= 4.0)
                         isLoadingTop = true
                         val topData = prestataireRepo.searchPrestataires(service = null, noteMin = 4.0, zone = null)
                         if (topData != null) {
-                            // Trier par note décroissante et prendre les 5 premiers
-                            val minNote = BigDecimal.valueOf(4.0)   // ✅ conversion en BigDecimal
+                            val minNote = BigDecimal.valueOf(4.0)
                             topPrestataires = topData
                                 .filter { it.moyenneNotes != null && it.moyenneNotes!! >= minNote }
                                 .sortedByDescending { it.moyenneNotes }
@@ -241,7 +239,6 @@ fun ClientDashboard(
                         isLoadingTop = false
                     }
 
-                    // Filtrer les prestataires
                     val filteredPrestataires by remember {
                         derivedStateOf {
                             var list = prestataires
@@ -268,7 +265,6 @@ fun ClientDashboard(
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // --- 1. Message de bienvenue ---
                         Text(
                             text = "Bonjour, $userName !",
                             style = MaterialTheme.typography.headlineSmall,
@@ -281,7 +277,6 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space24))
 
-                        // --- 4. Champ de recherche ---
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
@@ -290,11 +285,7 @@ fun ClientDashboard(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = NavyLight
-                                )
+                                Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = NavyLight)
                             },
                             colors = TextFieldDefaults.colors(
                                 focusedIndicatorColor = NavyPrimary,
@@ -313,7 +304,6 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // --- 2. Prochaine intervention ---
                         if (isLoadingNextReservation) {
                             CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
                             Spacer(modifier = Modifier.height(space16))
@@ -363,14 +353,12 @@ fun ClientDashboard(
                                 }
                             }
                             Spacer(modifier = Modifier.height(space16))
-                            // --- 3. Prestataires recommandés (Top notes) ---
+
                             if (isLoadingTop) {
                                 CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
                                 Spacer(modifier = Modifier.height(space16))
                             } else if (topPrestataires.isNotEmpty()) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
                                     Text(
                                         text = "⭐ Prestataires recommandés",
                                         style = MaterialTheme.typography.labelLarge,
@@ -378,15 +366,11 @@ fun ClientDashboard(
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(modifier = Modifier.height(space8))
-                                    LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(space8)
-                                    ) {
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(space8)) {
                                         items(topPrestataires) { prestataire ->
                                             CompactPrestataireCard(
                                                 prestataire = prestataire,
-                                                onClick = {
-                                                    onNavigateToBook(prestataire.id)
-                                                }
+                                                onClick = { onNavigateToBook(prestataire.id) }
                                             )
                                         }
                                     }
@@ -402,9 +386,6 @@ fun ClientDashboard(
                             Spacer(modifier = Modifier.height(space16))
                         }
 
-
-
-                        // --- 5. Chips de filtres rapides ---
                         if (services.isNotEmpty()) {
                             Text(
                                 "Filtres rapides",
@@ -414,9 +395,7 @@ fun ClientDashboard(
                             )
                             Spacer(modifier = Modifier.height(space8))
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(space8)
                             ) {
                                 services.take(5).forEach { service ->
@@ -437,7 +416,6 @@ fun ClientDashboard(
                             Spacer(modifier = Modifier.height(space24))
                         }
 
-                        // --- 6. Liste des prestataires ---
                         if (isLoadingPrestataires) {
                             CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
                             Spacer(modifier = Modifier.height(space16))
@@ -461,17 +439,15 @@ fun ClientDashboard(
                             Spacer(modifier = Modifier.height(space8))
 
                             LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(350.dp),
+                                modifier = Modifier.fillMaxWidth().height(350.dp),
                                 verticalArrangement = Arrangement.spacedBy(space8)
                             ) {
                                 items(filteredPrestataires) { prestataire ->
                                     PrestataireCard(
                                         prestataire = prestataire,
                                         onClick = {
-                                            selectedPrestataire.value = prestataire   // ✅ Nouveau
-                                            showPrestataireDetail.value = true        // ✅ Nouveau
+                                            selectedPrestataire.value = prestataire
+                                            showPrestataireDetail.value = true
                                         }
                                     )
                                 }
@@ -481,23 +457,22 @@ fun ClientDashboard(
                         Text("© 2026 Kolabor", style = MaterialTheme.typography.bodySmall, color = Gray500)
                     }
                 }
+
                 1 -> {
-                    // 🔍 ONGLET EXPLORER – SANS CATÉGORIES
                     var searchQueryExplorer by remember { mutableStateOf("") }
                     var filteredPrestatairesExplorer by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
                     var isLoadingExplorer by remember { mutableStateOf(false) }
                     var isGridView by remember { mutableStateOf(true) }
                     var showFilters by remember { mutableStateOf(false) }
-                    var filterOptions by remember { mutableStateOf<FilterOptions>(FilterOptions()) }
+                    var filterOptions by remember { mutableStateOf(FilterOptions()) }
                     var sortOption by remember { mutableStateOf("Par défaut") }
                     val sortOptions = listOf("Par défaut", "Note (croissante)", "Note (décroissante)", "Prix (croissant)", "Prix (décroissant)")
                     var showSortDropdown by remember { mutableStateOf(false) }
                     var selectedCategory by remember { mutableStateOf<String?>(null) }
                     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
                     var showSuggestions by remember { mutableStateOf(false) }
-                    var allPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) } // ✅ AJOUT
+                    var allPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
 
-                    // Charger les prestataires en fonction des filtres
                     LaunchedEffect(selectedCategory, searchQueryExplorer, filterOptions, sortOption) {
                         isLoadingExplorer = true
                         val data = prestataireRepo.searchPrestataires(
@@ -506,10 +481,9 @@ fun ClientDashboard(
                             zone = null
                         )
                         if (data != null) {
-                            allPrestataires = data // ✅ Sauvegarder la liste complète
+                            allPrestataires = data
                             var filtered = data
 
-                            // Filtrage par prix
                             if (filterOptions.priceMin > 0 || filterOptions.priceMax < 3000.0) {
                                 filtered = filtered.filter {
                                     val tarif = it.tarifHoraire?.toDouble() ?: 0.0
@@ -517,7 +491,6 @@ fun ClientDashboard(
                                 }
                             }
 
-                            // Filtrage par recherche texte
                             if (searchQueryExplorer.isNotBlank()) {
                                 filtered = filtered.filter {
                                     it.nom.contains(searchQueryExplorer, ignoreCase = true) ||
@@ -526,13 +499,12 @@ fun ClientDashboard(
                                 }
                             }
 
-                            // Tri
                             when (sortOption) {
                                 "Note (croissante)" -> filtered = filtered.sortedBy { it.moyenneNotes?.toDouble() ?: 0.0 }
                                 "Note (décroissante)" -> filtered = filtered.sortedByDescending { it.moyenneNotes?.toDouble() ?: 0.0 }
                                 "Prix (croissant)" -> filtered = filtered.sortedBy { it.tarifHoraire?.toDouble() ?: 0.0 }
                                 "Prix (décroissant)" -> filtered = filtered.sortedByDescending { it.tarifHoraire?.toDouble() ?: 0.0 }
-                                else -> { /* Par défaut */ }
+                                else -> {}
                             }
 
                             filteredPrestatairesExplorer = filtered
@@ -549,7 +521,6 @@ fun ClientDashboard(
                             .padding(horizontal = space24, vertical = space24)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // Titre
                         Text(
                             text = "Explorer",
                             style = MaterialTheme.typography.headlineMedium,
@@ -563,21 +534,52 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // 🔍 Champ de recherche
+                        // ─── Grille de catégories ───
+                        if (services.isNotEmpty()) {
+                            Text(
+                                text = "Explorez par catégorie",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = NavyPrimary
+                            )
+                            Spacer(modifier = Modifier.height(space4))
+                            Text(
+                                text = "Des centaines de services à domicile, partout en Haïti.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Gray500
+                            )
+                            Spacer(modifier = Modifier.height(space16))
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                horizontalArrangement = Arrangement.spacedBy(space8),
+                                verticalArrangement = Arrangement.spacedBy(space8),
+                                modifier = Modifier.height(220.dp)
+                            ) {
+                                items(services.take(9)) { service ->
+                                    CategoryTile(
+                                        service = service,
+                                        isSelected = selectedCategory == service.nom,
+                                        onClick = {
+                                            selectedCategory = if (selectedCategory == service.nom) null else service.nom
+                                        }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space24))
+                        }
+
                         OutlinedTextField(
                             value = searchQueryExplorer,
                             onValueChange = { query ->
                                 searchQueryExplorer = query
-                                // Mise à jour des suggestions
                                 if (query.length >= 2 && allPrestataires.isNotEmpty()) {
                                     val allNames = allPrestataires.map { it.nom }
                                     val allCompetences = allPrestataires.flatMap {
-                                        it.competences?.split(",")?.map { it.trim() } ?: emptyList()
+                                        it.competences?.split(",")?.map { c -> c.trim() } ?: emptyList()
                                     }
                                     val combined = (allNames + allCompetences).distinct()
-                                    suggestions = combined.filter { suggestion ->
-                                        suggestion.contains(query, ignoreCase = true)
-                                    }.take(5)
+                                    suggestions = combined.filter { it.contains(query, ignoreCase = true) }.take(5)
                                     showSuggestions = suggestions.isNotEmpty()
                                 } else {
                                     showSuggestions = false
@@ -588,19 +590,15 @@ fun ClientDashboard(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = NavyLight
-                                )
+                                Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = NavyLight)
                             },
                             colors = TextFieldDefaults.colors(
                                 focusedIndicatorColor = NavyPrimary,
                                 unfocusedIndicatorColor = NavyLight,
                                 focusedLabelColor = NavyPrimary,
                                 unfocusedLabelColor = Gray600,
-                                focusedContainerColor = Color(0xFFFFFFFF),
-                                unfocusedContainerColor = Color(0xFFFFFFFF),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
                                 focusedTextColor = Gray900,
                                 unfocusedTextColor = Gray900,
                                 errorIndicatorColor = ErrorColor,
@@ -611,13 +609,9 @@ fun ClientDashboard(
                         )
                         Spacer(modifier = Modifier.height(space16))
 
-                        // Suggestions
                         if (showSuggestions) {
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 150.dp)
-                                    .padding(vertical = space4),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp).padding(vertical = space4),
                                 colors = CardDefaults.cardColors(containerColor = Color.White),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                                 shape = MaterialTheme.shapes.small
@@ -641,14 +635,13 @@ fun ClientDashboard(
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                         }
-                                        Divider(color = Gray100)
+                                        HorizontalDivider(color = Gray100)
                                     }
                                 }
                             }
                             Spacer(modifier = Modifier.height(space8))
                         }
 
-                        // Tri
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -677,7 +670,6 @@ fun ClientDashboard(
                         }
                         Spacer(modifier = Modifier.height(space8))
 
-                        // Filtres + Bascule vue
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -713,7 +705,6 @@ fun ClientDashboard(
                         }
                         Spacer(modifier = Modifier.height(space8))
 
-                        // Résultats
                         if (isLoadingExplorer) {
                             CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
                             Spacer(modifier = Modifier.height(space16))
@@ -738,9 +729,7 @@ fun ClientDashboard(
                                     columns = GridCells.Fixed(2),
                                     horizontalArrangement = Arrangement.spacedBy(space8),
                                     verticalArrangement = Arrangement.spacedBy(space8),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(350.dp)
+                                    modifier = Modifier.fillMaxWidth().height(350.dp)
                                 ) {
                                     items(filteredPrestatairesExplorer) { prestataire ->
                                         ExplorerPrestataireCard(
@@ -754,9 +743,7 @@ fun ClientDashboard(
                                 }
                             } else {
                                 LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(350.dp),
+                                    modifier = Modifier.fillMaxWidth().height(350.dp),
                                     verticalArrangement = Arrangement.spacedBy(space8)
                                 ) {
                                     items(filteredPrestatairesExplorer) { prestataire ->
@@ -774,7 +761,6 @@ fun ClientDashboard(
                         }
                     }
 
-                    // Bottom Sheet des filtres
                     if (showFilters) {
                         FilterBottomSheet(
                             currentFilters = filterOptions,
@@ -782,19 +768,16 @@ fun ClientDashboard(
                                 filterOptions = newFilters
                                 showFilters = false
                             },
-                            onDismiss = {
-                                showFilters = false
-                            }
+                            onDismiss = { showFilters = false }
                         )
                     }
                 }
 
                 2 -> {
-                    // ✅ États pour gérer le détail de la réservation
                     if (selectedReservation != null) {
                         ReservationDetailScreen(
                             reservation = selectedReservation!!,
-                            clientId = clientId,   // ✅ AJOUT
+                            clientId = clientId,
                             onBack = { selectedReservation = null },
                             onCancel = { selectedReservation = null },
                             onReview = { selectedReservation = null }
@@ -803,60 +786,52 @@ fun ClientDashboard(
                         ReservationsScreen(
                             onBack = { selectedTab = 0 },
                             clientId = clientId,
-                            onReservationClick = { reservation ->
-                                selectedReservation = reservation  // ✅ Affiche le détail
-                            }
+                            onReservationClick = { reservation -> selectedReservation = reservation }
                         )
                     }
                 }
+
                 3 -> {
-                    ProfileScreen(onLogout = onLogout)
+                    ProfileScreen(
+                        onLogout = onLogout
+                    )
                 }
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────
+// Composants réutilisables
+// ─────────────────────────────────────────────────────────
+
 @Composable
 fun StatCard(
     label: String,
     value: String,
     color: Color,
-    modifier: Modifier = Modifier   // ✅ paramètre ajouté
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,  // ✅ le modifier est appliqué ici
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.small
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = space12, horizontal = space8),
+            modifier = Modifier.fillMaxWidth().padding(vertical = space12, horizontal = space8),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                color = color
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray500
-            )
+            Text(text = value, style = MaterialTheme.typography.headlineSmall, color = color)
+            Text(text = label, style = MaterialTheme.typography.bodySmall, color = Gray500)
         }
     }
 }
 
-//  Composant ServiceGridItem (défini ici)
 @Composable
 fun ServiceGridItem(service: Service, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(80.dp),
+        modifier = Modifier.fillMaxWidth().height(80.dp),
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -867,24 +842,13 @@ fun ServiceGridItem(service: Service, onClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = NavyPrimary,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = NavyPrimary, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.height(space4))
-            Text(
-                text = service.nom,
-                style = MaterialTheme.typography.bodyMedium,
-                color = NavyPrimary,
-                maxLines = 1
-            )
+            Text(text = service.nom, style = MaterialTheme.typography.bodyMedium, color = NavyPrimary, maxLines = 1)
         }
     }
 }
 
-// 🔧 DashboardActionCard (inchangé)
 @Composable
 fun DashboardActionCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -915,71 +879,37 @@ fun ExplorerPrestataireCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().height(200.dp).clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.small
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(space8),
+            modifier = Modifier.fillMaxSize().padding(space8),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Photo (placeholder si non disponible)
             Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(NavyLight.copy(alpha = 0.3f))
+                modifier = Modifier.size(80.dp).clip(CircleShape).background(NavyLight.copy(alpha = 0.3f))
             ) {
-                if (prestataire.photo != null) {
-                    // Si vous avez des photos réelles, chargez-les avec Coil/Glide
-                    // Pour l'instant, on met une icône
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = NavyPrimary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = NavyPrimary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = NavyPrimary,
+                    modifier = Modifier.size(48.dp)
+                )
             }
             Spacer(modifier = Modifier.height(space4))
-            Text(
-                text = prestataire.nom,
-                style = MaterialTheme.typography.titleMedium,
-                color = NavyPrimary,
-                maxLines = 1
-            )
-            // Note (étoiles)
+            Text(text = prestataire.nom, style = MaterialTheme.typography.titleMedium, color = NavyPrimary, maxLines = 1)
             Row {
                 repeat(5) { index ->
                     Icon(
-                        imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
-                            Icons.Filled.Star
-                        else
-                            Icons.Outlined.Star,
+                        imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) Icons.Filled.Star else Icons.Outlined.Star,
                         contentDescription = null,
-                        tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
-                            GreenPrimary else Gray300,
+                        tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) GreenPrimary else Gray300,
                         modifier = Modifier.size(14.dp)
                     )
                 }
-                Text(
-                    text = " ${prestataire.moyenneNotes?.toString() ?: "N/A"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Gray600
-                )
+                Text(text = " ${prestataire.moyenneNotes?.toString() ?: "N/A"}", style = MaterialTheme.typography.bodySmall, color = Gray600)
             }
             Text(
                 text = "Tarif: ${prestataire.tarifHoraire?.toString() ?: "N/A"} Gdes/h",
@@ -1003,13 +933,8 @@ fun CategoryCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) NavyPrimary else Color.White
-        ),
+        modifier = Modifier.fillMaxWidth().height(72.dp).clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = if (isSelected) NavyPrimary else Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 2.dp),
         shape = MaterialTheme.shapes.small
     ) {
@@ -1039,13 +964,12 @@ fun CompactPrestataireCard(
     prestataire: Prestataire,
     onClick: () -> Unit
 ) {
-    // Extraire le premier service de la liste des compétences
     val mainService = prestataire.competences?.split(",")?.firstOrNull()?.trim() ?: "Service non spécifié"
 
     Card(
         modifier = Modifier
             .width(180.dp)
-            .height(180.dp) // 🔼 Légèrement plus grand pour tout afficher
+            .height(220.dp) // augmenté pour accueillir la photo
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1057,32 +981,42 @@ fun CompactPrestataireCard(
                 .padding(space12),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 📸 Photo (placeholder)
+            // 📸 PHOTO DE PROFIL (avec fallback)
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(NavyLight.copy(alpha = 0.3f))
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = NavyPrimary,
-                    modifier = Modifier.size(40.dp)
-                )
+                if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
+                    val fullUrl = normalizePhotoUrl(prestataire.photo)
+                    AsyncImage(
+                        model = fullUrl,
+                        contentDescription = "Photo de ${prestataire.nom}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(space8))
 
-            // 📝 Nom
+            // Nom
             Text(
                 text = prestataire.nom,
-                style = MaterialTheme.typography.titleSmall, // taille ajustée
+                style = MaterialTheme.typography.titleSmall,
                 color = NavyPrimary,
                 maxLines = 1
             )
 
-            // 🛠 Service principal
+            // Service principal
             Text(
                 text = mainService,
                 style = MaterialTheme.typography.labelMedium,
@@ -1090,7 +1024,7 @@ fun CompactPrestataireCard(
                 maxLines = 1
             )
 
-            // 📍 Zone d'intervention
+            // Zone d'intervention
             Text(
                 text = prestataire.zoneIntervention ?: "Zone non spécifiée",
                 style = MaterialTheme.typography.labelSmall,
@@ -1100,11 +1034,8 @@ fun CompactPrestataireCard(
 
             Spacer(modifier = Modifier.height(space4))
 
-            // ⭐ Nombre d'étoiles + Nombre d'avis
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Afficher les 5 étoiles (remplies selon la moyenne)
+            // Étoiles + Nombre d'avis
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 val note = prestataire.moyenneNotes?.toInt() ?: 0
                 repeat(5) { index ->
                     Icon(
@@ -1114,7 +1045,6 @@ fun CompactPrestataireCard(
                         modifier = Modifier.size(14.dp)
                     )
                 }
-                // Nombre d'avis
                 Text(
                     text = " (${prestataire.nombreAvis})",
                     style = MaterialTheme.typography.labelSmall,
@@ -1131,58 +1061,33 @@ fun ExplorerPrestataireListCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.small
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(space12),
+            modifier = Modifier.fillMaxWidth().padding(space12),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Photo
             Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(CircleShape)
-                    .background(NavyLight.copy(alpha = 0.3f))
+                modifier = Modifier.size(60.dp).clip(CircleShape).background(NavyLight.copy(alpha = 0.3f))
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = NavyPrimary,
-                    modifier = Modifier.size(32.dp)
-                )
+                Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = NavyPrimary, modifier = Modifier.size(32.dp))
             }
             Spacer(modifier = Modifier.width(space12))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = prestataire.nom,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NavyPrimary
-                )
+                Text(text = prestataire.nom, style = MaterialTheme.typography.titleMedium, color = NavyPrimary)
                 Row {
                     repeat(5) { index ->
                         Icon(
-                            imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
-                                Icons.Filled.Star
-                            else
-                                Icons.Outlined.Star,
+                            imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) Icons.Filled.Star else Icons.Outlined.Star,
                             contentDescription = null,
-                            tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
-                                GreenPrimary else Gray300,
+                            tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) GreenPrimary else Gray300,
                             modifier = Modifier.size(14.dp)
                         )
                     }
-                    Text(
-                        text = " (${prestataire.nombreAvis})",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Gray500
-                    )
+                    Text(text = " (${prestataire.nombreAvis})", style = MaterialTheme.typography.labelSmall, color = Gray500)
                 }
                 Text(
                     text = "💰 ${prestataire.tarifHoraire?.toString() ?: "N/A"} Gdes/h",
@@ -1196,10 +1101,68 @@ fun ExplorerPrestataireListCard(
                     maxLines = 1
                 )
             }
+            Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null, tint = Gray400)
+        }
+    }
+}
+
+// ─── Palette de couleurs pour les tuiles de catégories ───
+private val categoryPalette = listOf(
+    Color(0xFFF3E8FF) to Color(0xFF9333EA), // violet
+    Color(0xFFE0F2FE) to Color(0xFF0284C7), // bleu clair
+    Color(0xFFDBEAFE) to Color(0xFF2563EB), // bleu
+    Color(0xFFFEF3C7) to Color(0xFFD97706), // jaune
+    Color(0xFFFCE7F3) to Color(0xFFDB2777), // rose
+    Color(0xFFD1FAE5) to Color(0xFF059669), // vert
+)
+
+@Composable
+fun CategoryTile(
+    service: Service,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val (bgColor, iconColor) = categoryPalette[service.nom.hashCode().mod(categoryPalette.size)]
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) GreenPrimary else Gray200,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() }
+            .padding(space12),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Box(
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(bgColor),
+            contentAlignment = Alignment.Center
+        ) {
             Icon(
-                imageVector = Icons.Default.ArrowForward,
+                imageVector = Icons.Outlined.Build,
                 contentDescription = null,
-                tint = Gray400
+                tint = iconColor,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(space8))
+        Text(
+            text = service.nom,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = NavyPrimary,
+            maxLines = 1
+        )
+        if (!service.categorie.isNullOrBlank()) {
+            Text(
+                text = service.categorie,
+                style = MaterialTheme.typography.labelSmall,
+                color = Gray500,
+                maxLines = 1
             )
         }
     }

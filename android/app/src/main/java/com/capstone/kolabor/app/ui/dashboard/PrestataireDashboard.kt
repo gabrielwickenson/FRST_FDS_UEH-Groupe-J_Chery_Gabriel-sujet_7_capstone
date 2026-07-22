@@ -49,7 +49,9 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrestataireDashboard(onLogout: () -> Unit,
-                         userId: Long ) {
+                         userId: Long,
+                         userName: String = "Prestataire"   // ✅ Nouveau paramètre
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
@@ -236,7 +238,7 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                         ) {
                             item {
                                 Text(
-                                    text = "Bonjour, Prestataire !",
+                                    text = "Bonjour, $userName !",
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = NavyPrimary,
                                     fontWeight = FontWeight.Bold

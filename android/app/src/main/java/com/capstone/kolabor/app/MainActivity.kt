@@ -124,6 +124,9 @@ fun KolaborApp() {
     val selectedReservation = remember { mutableStateOf<Reservation?>(null) }
     val userRepository = remember { UserRepository(context) }
 
+    // Déclarer l'état pour le nom
+    val userName = remember { mutableStateOf<String?>(null) }
+
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
         // Chargement de la session
@@ -134,6 +137,8 @@ fun KolaborApp() {
                 isLoggedIn.value = true
                 showOnboarding.value = false
                 userId.value = tokenManager.getUserId() ?: 0L
+                // ✅ Récupérer le nom
+                userName.value = tokenManager.getUserName() ?: "Utilisateur"
             }
         }
     }
@@ -182,7 +187,8 @@ fun KolaborApp() {
                                             coroutineScope.launch {
                                                 showReservations.value = true
                                             }
-                                        }
+                                        },
+                                        userName = userName.value ?: "Client"   //  Passer le nom
                                     )
                                 }
                             }
@@ -199,7 +205,8 @@ fun KolaborApp() {
                                         showLogin.value = true
                                     }
                                 },
-                                userId = userId.value ?: 0L   // ← ID passé !
+                                userId = userId.value ?: 0L,   //  ID passé !
+                                userName = userName.value ?: "Prestataire"   //  Passer le nom
                             )
                         }
                         else -> {
