@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,12 +16,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.repository.ReservationRepository
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
@@ -234,26 +239,47 @@ fun ReservationCard(reservation: Reservation, onClick: () -> Unit) {
             modifier = Modifier.padding(16.dp)
         ) {
             // Ligne supérieure : service + statut
+            // Dans ReservationCard
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = reservation.service?.nom ?: "Service inconnu",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NavyPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = statutColor.copy(alpha = 0.12f)
+                // Photo du prestataire
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(NavyLight.copy(alpha = 0.3f))
                 ) {
+                    val photo = reservation.prestataire?.photo
+                    if (photo != null && photo.isNotEmpty()) {
+                        val fullUrl = normalizePhotoUrl(photo)
+                        AsyncImage(
+                            model = fullUrl,
+                            contentDescription = "Photo du prestataire",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = NavyPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
                     Text(
-                        text = reservation.statut?.replace("_", " ") ?: "Inconnu",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statutColor,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        text = reservation.service?.nom ?: "Service inconnu",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NavyPrimary
+                    )
+                    Text(
+                        text = "Prestataire: ${reservation.prestataire?.nom ?: "Non spécifié"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Gray700
                     )
                 }
             }

@@ -15,10 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.capstone.kolabor.app.data.model.Reservation
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -112,18 +115,30 @@ fun ReservationDetailScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Dans ReservationDetailScreen.kt (section "Carte prestataire")
                     Box(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(RoundedCornerShape(32.dp))
                             .background(NavyLight.copy(alpha = 0.2f))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = NavyPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        val photo = reservation.prestataire?.photo
+                        if (photo != null && photo.isNotEmpty()) {
+                            val fullUrl = normalizePhotoUrl(photo)
+                            AsyncImage(
+                                model = fullUrl,
+                                contentDescription = "Photo du prestataire",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = NavyPrimary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {

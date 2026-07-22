@@ -29,7 +29,9 @@ import com.capstone.kolabor.app.data.model.Disponibilite
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.foundation.background
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import coil.compose.AsyncImage
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,6 +80,7 @@ fun PrestataireDetailScreen(
         ) {
             // Photo + Nom + Note
             item {
+                // Dans PrestataireDetailScreen.kt
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -88,19 +91,30 @@ fun PrestataireDetailScreen(
                             .clip(CircleShape)
                             .background(NavyLight.copy(alpha = 0.3f))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = NavyPrimary,
-                            modifier = Modifier.size(48.dp)
-                        )
+                        if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
+                            val fullUrl = normalizePhotoUrl(prestataire.photo)
+                            AsyncImage(
+                                model = fullUrl,
+                                contentDescription = "Photo de ${prestataire.nom}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = NavyPrimary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(space16))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
                             text = prestataire.nom,
                             style = MaterialTheme.typography.headlineSmall,
-                            color = NavyPrimary
+                            color = NavyPrimary,
+                            fontWeight = FontWeight.Bold
                         )
                         Row {
                             repeat(5) { index ->
@@ -170,6 +184,7 @@ fun PrestataireDetailScreen(
             item { Spacer(modifier = Modifier.height(space16)) }
 
             // Avis
+            // --- SECTION AVIS ---
             item {
                 Text("Avis des clients", style = MaterialTheme.typography.titleMedium, color = NavyPrimary)
                 Spacer(modifier = Modifier.height(space8))
@@ -194,33 +209,24 @@ fun PrestataireDetailScreen(
                                 .padding(space12),
                             verticalAlignment = Alignment.Top
                         ) {
-                            // Photo du client (placeholder)
-                            // Dans PrestataireDetailScreen.kt
+                            // 📸 PHOTO DU CLIENT (placeholder)
                             Box(
                                 modifier = Modifier
-                                    .size(100.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(NavyLight.copy(alpha = 0.3f))
                             ) {
-                                if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
-                                    AsyncImage(
-                                        model = "http://10.0.2.2:8080${prestataire.photo}",
-                                        contentDescription = "Photo de ${prestataire.nom}",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = NavyPrimary,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Photo du client",
+                                    tint = NavyPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                             Spacer(modifier = Modifier.width(space12))
+
+                            // Contenu de l'avis
                             Column(modifier = Modifier.weight(1f)) {
-                                // Nom + Note
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -245,13 +251,11 @@ fun PrestataireDetailScreen(
                                         }
                                     }
                                 }
-                                // Commentaire
                                 Text(
                                     text = avisItem.commentaire ?: "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Gray600
                                 )
-                                // Date
                                 Text(
                                     text = avisItem.date?.let { formatDate(it) } ?: "",
                                     style = MaterialTheme.typography.bodySmall,

@@ -888,15 +888,26 @@ fun ExplorerPrestataireCard(
             modifier = Modifier.fillMaxSize().padding(space8),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 📸 PHOTO DE PROFIL (avec fallback) — même logique que CompactPrestataireCard / ExplorerPrestataireListCard
             Box(
                 modifier = Modifier.size(80.dp).clip(CircleShape).background(NavyLight.copy(alpha = 0.3f))
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = NavyPrimary,
-                    modifier = Modifier.size(48.dp)
-                )
+                if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
+                    val fullUrl = normalizePhotoUrl(prestataire.photo)
+                    AsyncImage(
+                        model = fullUrl,
+                        contentDescription = "Photo de ${prestataire.nom}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(space4))
             Text(text = prestataire.nom, style = MaterialTheme.typography.titleMedium, color = NavyPrimary, maxLines = 1)
@@ -1061,33 +1072,70 @@ fun ExplorerPrestataireListCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = MaterialTheme.shapes.small
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(space12),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(space12),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 📸 PHOTO DE PROFIL (avec fallback)
             Box(
-                modifier = Modifier.size(60.dp).clip(CircleShape).background(NavyLight.copy(alpha = 0.3f))
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+                    .background(NavyLight.copy(alpha = 0.3f))
             ) {
-                Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = NavyPrimary, modifier = Modifier.size(32.dp))
+                if (prestataire.photo != null && prestataire.photo.isNotEmpty()) {
+                    val fullUrl = normalizePhotoUrl(prestataire.photo)
+                    AsyncImage(
+                        model = fullUrl,
+                        contentDescription = "Photo de ${prestataire.nom}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(space12))
+
+            // Infos
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = prestataire.nom, style = MaterialTheme.typography.titleMedium, color = NavyPrimary)
+                Text(
+                    text = prestataire.nom,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = NavyPrimary
+                )
                 Row {
                     repeat(5) { index ->
                         Icon(
-                            imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) Icons.Filled.Star else Icons.Outlined.Star,
+                            imageVector = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                                Icons.Filled.Star
+                            else
+                                Icons.Outlined.Star,
                             contentDescription = null,
-                            tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0)) GreenPrimary else Gray300,
+                            tint = if (index < (prestataire.moyenneNotes?.toInt() ?: 0))
+                                GreenPrimary else Gray300,
                             modifier = Modifier.size(14.dp)
                         )
                     }
-                    Text(text = " (${prestataire.nombreAvis})", style = MaterialTheme.typography.labelSmall, color = Gray500)
+                    Text(
+                        text = " (${prestataire.nombreAvis})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Gray500
+                    )
                 }
                 Text(
                     text = "💰 ${prestataire.tarifHoraire?.toString() ?: "N/A"} Gdes/h",
@@ -1101,7 +1149,11 @@ fun ExplorerPrestataireListCard(
                     maxLines = 1
                 )
             }
-            Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null, tint = Gray400)
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Gray400
+            )
         }
     }
 }
