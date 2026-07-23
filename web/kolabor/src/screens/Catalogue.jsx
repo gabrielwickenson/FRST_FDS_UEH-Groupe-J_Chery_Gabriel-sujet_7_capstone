@@ -12,6 +12,9 @@ function Catalogue() {
     roleClientStyle,
     roleProStyle,
     services,
+    servicesLoading,
+    servicesError,
+    noServices,
     allPros,
     screen,
     isAccueil,
@@ -134,7 +137,13 @@ function Catalogue() {
 ))}
     </div>
     <div className="k531">
-      {filteredCatalogue.map((cat, __i) => (
+      {servicesLoading ? (
+        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Chargement des catégories…</p>
+      ) : servicesError ? (
+        <p style={{gridColumn: "1 / -1", color: "#B91C1C"}}>Impossible de charger le catalogue depuis le serveur.</p>
+      ) : noServices ? (
+        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Aucune catégorie disponible pour le moment.</p>
+      ) : filteredCatalogue.map((cat, __i) => (
 <div key={cat.id ?? __i} className="k144">
   <div className="k532">
     <img className="k73" src={img(`img-${cat.slug}`, 800, 600)} alt={cat.name} style={{objectFit: "cover"}} />
@@ -147,22 +156,10 @@ function Catalogue() {
       {cat.name}
     </h3>
     <div className="k79">
-      <i className="icon fa-solid fa-star" style={{fontSize: "14px", color: "#F59E0B"}}></i>
-      <span className="k149">
-        {cat.rating}
-      </span>
-      · {cat.count} pros
+      {cat.count} service{cat.count > 1 ? "s" : ""}
     </div>
     <div className="k150">
-      <div>
-        <span className="k27">
-          À partir de
-        </span>
-        <div className="k151">
-          {cat.price}
-        </div>
-      </div>
-      <button className="k152" onClick={cat.open}>
+      <button className="k152" onClick={cat.open} style={{width: "100%"}}>
         Voir
       </button>
     </div>

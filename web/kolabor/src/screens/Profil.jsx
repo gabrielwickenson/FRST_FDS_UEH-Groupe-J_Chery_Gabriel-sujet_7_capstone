@@ -13,6 +13,9 @@ function Profil() {
     roleProStyle,
     services,
     allPros,
+    selectedPro,
+    selectedProStats,
+    selectedProAvis,
     screen,
     isAccueil,
     isServices,
@@ -95,6 +98,10 @@ function Profil() {
     pros,
     featured,
   } = useApp();
+  const pro = selectedPro || {};
+  const proName = pro.name || "Prestataire";
+  const proReviews = selectedProStats?.nombrePrestations ?? pro.reviews ?? 0;
+  const proRating = selectedProStats?.moyenneNotes ?? pro.rating ?? "—";
   return (
     <React.Fragment>
   <div className="k222">
@@ -104,49 +111,50 @@ function Profil() {
         <span className="k131" onClick={nav.pros}>
           Professionnels
         </span>
-        /  Marc Fontaine
+        /  {proName}
       </div>
     </div>
   </div>
   <section className="k225">
     <div className="k226">
       <span className="k227">
-        MF
+        {pro.initials || "PR"}
       </span>
       <div className="k228">
         <div className="k199">
           <h1 className="k229">
-            Marc Fontaine
+            {proName}
           </h1>
-          <span className="k230">
+          {pro.available ? (
+<span className="k230">
             <i className="icon fa-solid fa-shield-halved" style={{fontSize: "14px", color: "#22C55E"}}></i>
-            Vérifié
+            Disponible
           </span>
-          <span className="k231">
-            Premium
-          </span>
+) : null}
         </div>
         <div className="k232">
-          Plombier certifié · 8 ans d'expérience
+          {pro.job || "Prestataire"}
         </div>
         <div className="k233">
           <div className="k234">
             <i className="icon fa-solid fa-star" style={{fontSize: "16px", color: "#F59E0B"}}></i>
             <strong className="k235">
-              4,8
+              {proRating}
             </strong>
             <span className="k211">
-              (127 avis)
+              ({proReviews} avis)
             </span>
           </div>
           <div className="k236">
             <i className="icon fa-solid fa-location-dot" style={{fontSize: "16px", color: "#9CA3AF"}}></i>
-            Pétion-Ville, Haïti
+            {pro.city || "Haïti"}
           </div>
-          <div className="k237">
+          {pro.available ? (
+<div className="k237">
             <span className="k4"></span>
             Disponible aujourd'hui
           </div>
+) : null}
         </div>
       </div>
       <div className="k238">
@@ -260,68 +268,40 @@ function Profil() {
         <div className="k88">
           <div className="k256">
             <h2 className="k257">
-              Avis clients (127)
+              Avis clients ({proReviews})
             </h2>
             <div className="k258">
               <i className="icon fa-solid fa-star" style={{fontSize: "18px", color: "#F59E0B"}}></i>
               <strong className="k259">
-                4,8
+                {proRating}
               </strong>
             </div>
           </div>
           <div className="k260">
-            <div className="k261">
+            {(selectedProAvis || []).length === 0 ? (
+<p style={{color: "#6B7280", fontSize: 14}}>Aucun avis pour le moment.</p>
+) : selectedProAvis.slice(0, 5).map((a, __i) => (
+<div key={a.identifiant ?? __i}>
               <div className="k20">
                 <span className="k262">
-                  SM
+                  {"★".repeat(Math.round(a.note || 0))}
                 </span>
-                <div className="k22">
-                  <div className="k94">
-                    Sophie Martin
-                  </div>
-                  <div className="k263">
-                    ★★★★★
-                  </div>
-                </div>
                 <span className="k95">
-                  Il y a 3 jours
+                  {a.date || ""}
                 </span>
               </div>
               <p className="k264">
-                Intervention rapide et efficace. Marc est très professionnel, il a résolu notre problème en moins d'une heure. Je recommande vivement !
+                {a.commentaire}
               </p>
             </div>
-            <div>
-              <div className="k20">
-                <span className="k265">
-                  RJ
-                </span>
-                <div className="k22">
-                  <div className="k94">
-                    Ricardo Joseph
-                  </div>
-                  <div className="k263">
-                    ★★★★★
-                  </div>
-                </div>
-                <span className="k95">
-                  Il y a 1 semaine
-                </span>
-              </div>
-              <p className="k264">
-                Très satisfait du travail. Ponctuel, soigneux et tarif honnête. Je ferai de nouveau appel à lui.
-              </p>
-            </div>
+))}
           </div>
-          <button className="k266">
-            Voir tous les avis
-          </button>
         </div>
       </div>
       <aside className="k267">
         <div className="k268">
           <span className="k269">
-            250
+            {pro.price || "—"}
           </span>
           <span className="k270">
             Gdes

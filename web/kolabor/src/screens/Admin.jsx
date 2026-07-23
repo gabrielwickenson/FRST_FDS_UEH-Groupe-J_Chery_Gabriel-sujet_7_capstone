@@ -93,6 +93,10 @@ function Admin() {
     navPros,
     pros,
     featured,
+    litigesOuverts,
+    litigesOuvertsLoading,
+    litigesOuvertsError,
+    resoudreLitige,
   } = useApp();
   return (
     <React.Fragment>
@@ -355,67 +359,49 @@ function Admin() {
       <div className="k699">
         <div className="k700">
           <h2 className="k505">
-            Gestion des utilisateurs
+            Litiges ouverts
           </h2>
-          <div className="k199">
-            <div className="k701">
-              <i className="icon fa-solid fa-magnifying-glass" style={{fontSize: "16px", color: "#9CA3AF"}}></i>
-              <input className="k702" placeholder="Rechercher\u2026" />
-            </div>
-            <button className="k213">
-              + Ajouter
-            </button>
-          </div>
         </div>
         <div className="k703">
           <span>
-            Utilisateur
+            Reservation
           </span>
           <span>
-            Rôle
+            Client
           </span>
           <span>
-            Ville
+            Prestataire
           </span>
           <span>
-            Statut
+            Motif
           </span>
           <span className="k28">
             Actions
           </span>
         </div>
-        {adminUsers.map((u, __i) => (
-<div key={u.id ?? __i} className="k704">
-  <div className="k20">
-    <span className="k705" style={{background: u.color}}>
-      {u.initials}
-    </span>
-    <div className="k706">
-      <div className="k707">
-        {u.name}
-      </div>
-      <div className="k708">
-        {u.email}
-      </div>
-    </div>
-  </div>
-  <span style={u.roleStyle}>
-    {u.role}
+        {litigesOuvertsLoading ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Chargement...</p>
+) : litigesOuvertsError ? (
+<p style={{color: "#B91C1C", padding: "16px 24px"}}>Impossible de charger les litiges depuis le serveur.</p>
+) : litigesOuverts.length === 0 ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Aucun litige ouvert.</p>
+) : litigesOuverts.map((l) => (
+<div key={l.key} className="k704">
+  <span className="k709">
+    #{l.reservationId}
   </span>
   <span className="k709">
-    {u.city}
+    {l.clientNom}
   </span>
-  <span>
-    <span style={u.statusStyle}>
-      {u.status}
-    </span>
+  <span className="k709">
+    {l.proNom}
+  </span>
+  <span className="k709">
+    {l.motif}
   </span>
   <div className="k710">
-    <button className="k711">
-      <i className="icon fa-solid fa-pen" style={{fontSize: "15px", color: "currentColor"}}></i>
-    </button>
-    <button className="k712">
-      <i className="icon fa-solid fa-trash" style={{fontSize: "15px", color: "currentColor"}}></i>
+    <button className="k711" onClick={() => resoudreLitige(l.litigeId)}>
+      Resoudre
     </button>
   </div>
 </div>

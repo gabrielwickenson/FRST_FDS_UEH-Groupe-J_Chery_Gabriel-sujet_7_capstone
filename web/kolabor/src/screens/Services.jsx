@@ -12,6 +12,9 @@ function Services() {
     roleClientStyle,
     roleProStyle,
     services,
+    servicesLoading,
+    servicesError,
+    noServices,
     allPros,
     screen,
     isAccueil,
@@ -150,7 +153,13 @@ function Services() {
       </button>
     </div>
     <div className="k143">
-      {services.map((sv, __i) => (
+      {servicesLoading ? (
+        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Chargement des services…</p>
+      ) : servicesError ? (
+        <p style={{gridColumn: "1 / -1", color: "#B91C1C"}}>Impossible de charger les services depuis le serveur.</p>
+      ) : noServices ? (
+        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Aucun service disponible pour le moment.</p>
+      ) : services.map((sv, __i) => (
 <div key={sv.id ?? __i} className="k144">
   <div className="k145">
     <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt={sv.cat} style={{objectFit: "cover"}} />
@@ -163,23 +172,11 @@ function Services() {
       {sv.title}
     </h3>
     <div className="k79">
-      <i className="icon fa-solid fa-star" style={{fontSize: "14px", color: "#F59E0B"}}></i>
-      <span className="k149">
-        {sv.rating}
-      </span>
-      · Intervention rapide
+      {sv.description}
     </div>
     <div className="k150">
-      <div>
-        <span className="k27">
-          À partir de
-        </span>
-        <div className="k151">
-          {sv.price}
-        </div>
-      </div>
-      <button className="k152" onClick={sv.open}>
-        Voir
+      <button className="k152" onClick={sv.open} style={{width: "100%"}}>
+        Voir le détail
       </button>
     </div>
   </div>

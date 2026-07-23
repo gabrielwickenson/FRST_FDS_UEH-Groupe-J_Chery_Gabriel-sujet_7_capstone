@@ -93,21 +93,25 @@ function Factures() {
     navPros,
     pros,
     featured,
+    me,
+    reservationsClient,
+    reservationsClientLoading,
   } = useApp();
+  const factures = reservationsClient.filter((r) => r.statut !== "ANNULEE" && r.statut !== "ANNULE" && r.statut !== "EN_ATTENTE" && r.statut !== "ATTENTE");
   return (
     <React.Fragment>
   <div className="k424">
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          PJ
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Peter Joseph
+            {me.nom}
           </div>
           <div className="k428">
-            Pétion-Ville
+            {me.ville}
           </div>
         </div>
       </div>
@@ -159,63 +163,29 @@ function Factures() {
             Facture
           </span>
         </div>
-        <div className="k730">
+        {reservationsClientLoading ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Chargement…</p>
+) : factures.length === 0 ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Aucune facture pour le moment.</p>
+) : factures.map((f) => (
+<div key={f.key} className="k730">
           <span className="k731">
-            #KLB-0147
+            #{f.id}
           </span>
           <span className="k709">
-            Réparation fuite · Marc Fontaine
+            {f.titre} · {f.proNom}
           </span>
           <span className="k732">
-            15 Jan 2026
+            {f.dateHeure}
           </span>
           <span className="k364">
-            400 Gdes
+            {f.montant} Gdes
           </span>
           <div className="k733">
-            <button className="k734">
-              PDF
-            </button>
+            <span style={{color: "#9CA3AF", fontSize: 13}}>{f.statutLabel}</span>
           </div>
         </div>
-        <div className="k730">
-          <span className="k731">
-            #KLB-0132
-          </span>
-          <span className="k709">
-            Nettoyage maison · Roselène Pierre
-          </span>
-          <span className="k732">
-            9 Jan 2026
-          </span>
-          <span className="k364">
-            150 Gdes
-          </span>
-          <div className="k733">
-            <button className="k734">
-              PDF
-            </button>
-          </div>
-        </div>
-        <div className="k730">
-          <span className="k731">
-            #KLB-0098
-          </span>
-          <span className="k709">
-            Entretien climatiseur · Wesley Dorvil
-          </span>
-          <span className="k732">
-            28 Déc 2025
-          </span>
-          <span className="k364">
-            400 Gdes
-          </span>
-          <div className="k733">
-            <button className="k734">
-              PDF
-            </button>
-          </div>
-        </div>
+))}
       </div>
     </div>
   </div>

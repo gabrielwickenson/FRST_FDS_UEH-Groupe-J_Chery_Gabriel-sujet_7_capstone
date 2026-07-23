@@ -93,7 +93,11 @@ function Confirmation() {
     navPros,
     pros,
     featured,
+    selectedProId,
+    selectedService,
+    selectedReservationId,
   } = useApp();
+  const proInfo = allPros.find((p) => String(p.id) === String(selectedProId));
   return (
     <React.Fragment>
   <div className="k411">
@@ -108,7 +112,7 @@ function Confirmation() {
     <p className="k414">
       Votre réservation avec
       <strong className="k132">
-        Marc Fontaine
+        {proInfo?.name || "le professionnel"}
       </strong>
       est confirmée. Un e-mail de confirmation vous a été envoyé.
     </p>
@@ -118,31 +122,21 @@ function Confirmation() {
           N° de réservation
         </span>
         <span className="k417">
-          #KLB-2026-0147
+          {selectedReservationId ? `#${selectedReservationId}` : "—"}
         </span>
       </div>
       <div className="k418">
         <div className="k20">
           <span className="k96">
-            MF
+            {proInfo?.initials || "PR"}
           </span>
           <div>
             <div className="k23">
-              Marc Fontaine
+              {proInfo?.name || "Professionnel"}
             </div>
             <div className="k95">
-              Réparation de fuite d'eau
+              {selectedService?.title || "Service"}
             </div>
-          </div>
-        </div>
-        <div className="k419">
-          <div className="k420">
-            <i className="icon fa-solid fa-calendar-days" style={{fontSize: "16px", color: "#139356"}}></i>
-            15 Jan 2026
-          </div>
-          <div className="k420">
-            <i className="icon fa-solid fa-clock" style={{fontSize: "16px", color: "#139356"}}></i>
-            14h – 16h
           </div>
         </div>
       </div>

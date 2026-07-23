@@ -1,5 +1,6 @@
 import React from "react";
 import { AppProvider, useApp } from "./AppContext.jsx";
+import { AuthProvider } from "./AuthContext.jsx";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import Accueil from "./screens/Accueil.jsx";
@@ -84,9 +85,11 @@ function AppShell() {
 
 function App() {
   return (
-    <AppProvider>
-      <AppShell />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppShell />
+      </AppProvider>
+    </AuthProvider>
   );
 }
 

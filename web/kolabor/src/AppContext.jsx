@@ -1,5 +1,18 @@
 import React from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useHashPath, screenForPath, navigateTo } from "./router.jsx";
+import * as servicesApi from "./api/services.js";
+import * as prestatairesApi from "./api/prestataires.js";
+import * as usersApi from "./api/users.js";
+import * as reservationsApi from "./api/reservations.js";
+import { field, getUserId, toArray } from "./utils/field.js";
+import { useAuth } from "./AuthContext.jsx";
+
+const CATEGORY_PALETTE = ["#7C3AED", "#0EA5E9", "#19355F", "#F59E0B", "#EC4899", "#139356", "#92400E", "#6B7280", "#2563EB", "#0F7A48", "#DC2626", "#4F46E5", "#65A30D", "#B91C1C", "#0891B2", "#1E293B", "#16A34A", "#06B6D4", "#475569", "#DB2777", "#CA8A04", "#7C2D12", "#0D9488", "#EA580C"];
+function colorForIndex(i) {
+  const n = Number(i);
+  return CATEGORY_PALETTE[(Number.isFinite(n) ? n : 0) % CATEGORY_PALETTE.length];
+}
 
 // Etat global de l'application + toutes les données de démonstration.
 // Porté depuis le prototype d'origine (state + renderVals()) vers des hooks React classiques.
@@ -18,69 +31,8 @@ function normalize(x) {
 
 // ---- données statiques (issues du prototype) ----
 
-const PROS_BASE = [
-  { id: 1, cat: "Plomberie", ratingNum: 4.8, priceNum: 250, initials: "MF", name: "Marc Fontaine", job: "Plombier certifié", city: "Pétion-Ville", rating: "4,8", reviews: 127, price: "250 Gdes/h", avatar: "#19355F", verified: true, available: true, popular: false },
-  { id: 2, cat: "Électricité", ratingNum: 4.9, priceNum: 300, initials: "NJ", name: "Naïka Joseph", job: "Électricienne", city: "Delmas", rating: "4,9", reviews: 89, price: "300 Gdes/h", avatar: "#0F7A48", verified: true, available: true, popular: true },
-  { id: 3, cat: "Jardinage", ratingNum: 4.7, priceNum: 180, initials: "JB", name: "Jean Baptiste", job: "Jardinier paysagiste", city: "Port-au-Prince", rating: "4,7", reviews: 64, price: "180 Gdes/h", avatar: "#4B5563", verified: true, available: true, popular: false },
-  { id: 4, cat: "Ménage", ratingNum: 5.0, priceNum: 150, initials: "RP", name: "Roselène Pierre", job: "Aide-ménagère", city: "Carrefour", rating: "5,0", reviews: 152, price: "150 Gdes/h", avatar: "#139356", verified: true, available: false, popular: true },
-];
-
-const PROS_MORE = [
-  { id: 5, cat: "Climatisation", ratingNum: 4.6, priceNum: 400, initials: "WD", name: "Wesley Dorvil", job: "Climatisation", city: "Port-au-Prince", rating: "4,6", reviews: 73, price: "400 Gdes/h", avatar: "#2563EB", verified: true, available: true, popular: false },
-  { id: 6, cat: "Peinture", ratingNum: 4.8, priceNum: 220, initials: "GC", name: "Gladys Charles", job: "Peintre en bâtiment", city: "Cap-Haïtien", rating: "4,8", reviews: 41, price: "220 Gdes/h", avatar: "#7C3AED", verified: true, available: true, popular: false },
-  { id: 7, cat: "Électricité", ratingNum: 4.5, priceNum: 280, initials: "FE", name: "Frantz Étienne", job: "Électricien", city: "Les Cayes", rating: "4,5", reviews: 38, price: "280 Gdes/h", avatar: "#F59E0B", verified: true, available: false, popular: false },
-  { id: 8, cat: "Ménage", ratingNum: 4.9, priceNum: 160, initials: "MD", name: "Mirlande Dély", job: "Aide-ménagère", city: "Delmas", rating: "4,9", reviews: 96, price: "160 Gdes/h", avatar: "#0F7A48", verified: true, available: true, popular: false },
-];
-
-const SERVICES = [
-  { id: 1, cat: "Plomberie", title: "Réparation de fuite d’eau", price: "250 Gdes", rating: "4,9", tag: "#19355F" },
-  { id: 2, cat: "Électricité", title: "Installation électrique", price: "300 Gdes", rating: "4,8", tag: "#B45309" },
-  { id: 3, cat: "Ménage", title: "Nettoyage complet maison", price: "150 Gdes", rating: "5,0", tag: "#7C3AED" },
-  { id: 4, cat: "Climatisation", title: "Entretien climatiseur", price: "400 Gdes", rating: "4,6", tag: "#2563EB" },
-  { id: 5, cat: "Jardinage", title: "Entretien de jardin", price: "180 Gdes", rating: "4,7", tag: "#139356" },
-  { id: 6, cat: "Peinture", title: "Peinture intérieure", price: "220 Gdes", rating: "4,8", tag: "#4B5563" },
-  { id: 7, cat: "Plomberie", title: "Débouchage canalisation", price: "200 Gdes", rating: "4,7", tag: "#0F7A48" },
-  { id: 8, cat: "Électricité", title: "Dépannage urgent", price: "350 Gdes", rating: "4,9", tag: "#19355F" },
-];
-
-const CATALOGUE_BASE = [
-  { name: "Entretien de la maison", color: "#7C3AED", bg: "#F3E8FF", items: ["Ménage complet", "Nettoyage de printemps", "Nettoyage après déménagement", "Nettoyage après travaux", "Lavage des vitres", "Nettoyage des sols", "Dépoussiérage", "Désinfection", "Lavage de tapis", "Nettoyage de canapé", "Nettoyage de matelas", "Nettoyage de rideaux"] },
-  { name: "Lessive et Repassage", color: "#0EA5E9", bg: "#E0F2FE", items: ["Lessive", "Repassage", "Pliage du linge", "Lavage à sec (collecte/livraison)", "Organisation du dressing"] },
-  { name: "Plomberie", color: "#19355F", bg: "#DBEAFE", items: ["Réparation de fuite", "Débouchage", "Installation de robinet", "Installation de lavabo", "Installation de douche", "Installation de toilettes", "Réparation de chauffe-eau", "Remplacement de la tuyauterie"] },
-  { name: "Électricité", color: "#F59E0B", bg: "#FEF3C7", items: ["Installation de luminaires", "Pose de prises électriques", "Installation d’interrupteurs", "Ventilateurs de plafond", "Réparation de panne électrique", "Mise aux normes électriques", "Installation de tableau électrique"] },
-  { name: "Peinture", color: "#EC4899", bg: "#FCE7F3", items: ["Peinture intérieure", "Peinture extérieure", "Peinture de plafond", "Peinture de portes", "Peinture de fenêtres", "Pose de papier peint", "Retouches de peinture"] },
-  { name: "Jardinage", color: "#139356", bg: "#D8F3E4", items: ["Tonte de pelouse", "Taille de haies", "Désherbage", "Plantation", "Entretien du jardin", "Arrosage", "Élagage"] },
-  { name: "Menuiserie", color: "#92400E", bg: "#FEF3C7", items: ["Montage de meubles", "Meubles sur mesure", "Réparation de meubles", "Pose d’étagères", "Installation de portes", "Installation de fenêtres", "Pose de pancartes"] },
-  { name: "Maçonnerie", color: "#6B7280", bg: "#F3F4F6", items: ["Construction de murs", "Réparation de murs", "Pose de carrelage", "Réparation de carrelage", "Création de terrasse", "Création d’allées", "Bétonnage"] },
-  { name: "Climatisation & Ventilation", color: "#2563EB", bg: "#DBEAFE", items: ["Installation de climatisation", "Entretien de climatiseur", "Nettoyage des filtres", "Réparation de climatiseur", "Installation de ventilation"] },
-  { name: "Déménagement", color: "#0F7A48", bg: "#D8F3E4", items: ["Déménagement local", "Déménagement longue distance", "Emballage", "Déballage", "Manutention", "Déchargement"] },
-  { name: "Livraison", color: "#DC2626", bg: "#FEE2E2", items: ["Livraison de meubles", "Livraison d’électroménager", "Livraison de colis", "Livraison express"] },
-  { name: "Informatique & Technologie", color: "#4F46E5", bg: "#E0E7FF", items: ["Dépannage informatique", "Installation Wi-Fi", "Installation réseau", "Assistance informatique", "Caméra de surveillance", "Maintenance"] },
-  { name: "Déchets et débarras", color: "#65A30D", bg: "#ECFCCB", items: ["Enlèvement de déchets", "Débarras de maison", "Débarras de garage", "Débarras de cave", "Recyclage", "Enlèvement d’encombrants"] },
-  { name: "Désinfection & Antiparasitaire", color: "#B91C1C", bg: "#FEE2E2", items: ["Désinsectisation", "Dératisation", "Traitement anti-termites", "Désinfection complète", "Fumigation"] },
-  { name: "Installation d’appareils", color: "#0891B2", bg: "#CFFAFE", items: ["Installation murale TV", "Installation lave-linge", "Installation lave-vaisselle", "Installation four", "Installation réfrigérateur", "Installation hotte", "Installation chauffe-eau"] },
-  { name: "Sécurité", color: "#1E293B", bg: "#E2E8F0", items: ["Installation d’alarme", "Changement de serrure", "Installation de portail", "Installation de caméra", "Contrôle d’accès"] },
-  { name: "Aménagement paysager", color: "#16A34A", bg: "#DCFCE7", items: ["Création de jardin", "Pose de gazon", "Arrosage automatique", "Élagage", "Décoration extérieure"] },
-  { name: "Piscine", color: "#06B6D4", bg: "#CFFAFE", items: ["Nettoyage de piscine", "Traitement de l’eau", "Entretien régulier", "Réparation des équipements"] },
-  { name: "Services automobiles", color: "#475569", bg: "#F1F5F9", items: ["Lavage de voiture", "Nettoyage intérieur", "Polissage", "Changement de batterie", "Remplacement de pneus", "Assistance batterie"] },
-  { name: "Famille et assistance", color: "#DB2777", bg: "#FCE7F3", items: ["Garde d’enfants", "Aide aux devoirs", "Accompagnement scolaire", "Garde de personnes âgées", "Assistance à domicile"] },
-  { name: "Animaux", color: "#CA8A04", bg: "#FEF9C3", items: ["Promenade de chiens", "Garde d’animaux", "Toilettage", "Visite à domicile", "Nettoyage des espaces"] },
-  { name: "Amélioration de l’habitat", color: "#7C2D12", bg: "#FFEDD5", items: ["Rénovation intérieure", "Rénovation extérieure", "Isolation", "Faux plafond", "Pose de parquet", "Installation de cuisine", "Installation de salle de bain"] },
-  { name: "Fenêtres & Portes", color: "#0D9488", bg: "#CCFBF1", items: ["Réparation de fenêtres", "Installation de fenêtres", "Réparation de portes", "Installation de portes", "Pose de moustiquaires", "Installation de rideaux"] },
-  { name: "Énergie solaire", color: "#EA580C", bg: "#FFEDD5", items: ["Installation de panneaux solaires", "Entretien des panneaux", "Installation de batteries", "Audit énergétique"] },
-];
-
-const CAT_PRICE = ["150 Gdes","120 Gdes","250 Gdes","300 Gdes","220 Gdes","180 Gdes","260 Gdes","280 Gdes","400 Gdes","500 Gdes","200 Gdes","350 Gdes","160 Gdes","320 Gdes","240 Gdes","380 Gdes","300 Gdes","350 Gdes","270 Gdes","200 Gdes","150 Gdes","450 Gdes","240 Gdes","600 Gdes"];
-const CAT_COUNT = [412,87,340,285,198,156,93,71,124,64,52,112,58,41,79,63,88,37,74,96,55,68,49,33];
-const CAT_RATE = ["4,9","4,8","4,8","4,9","4,7","4,8","4,6","4,7","4,6","4,8","4,7","4,9","4,6","4,8","4,7","4,9","4,8","4,7","4,6","5,0","4,9","4,7","4,8","4,6"];
-
-const CATALOGUE = CATALOGUE_BASE.map((c, i) => ({
-  ...c,
-  slug: "cat" + i,
-  price: CAT_PRICE[i] || "200 Gdes",
-  count: CAT_COUNT[i] || 50,
-  rating: CAT_RATE[i] || "4,7",
-}));
+// `services` et `catalogue` (catégories) viennent maintenant en direct de
+// GET /api/services — plus de données statiques ici.
 
 const ZONES_HAITI = ["Port-au-Prince","Pétion-Ville","Delmas","Carrefour","Tabarre","Cité Soleil","Croix-des-Bouquets","Kenscoff","Thomassin","Croix-des-Missions","Cap-Haïtien","Les Cayes","Gonaïves","Saint-Marc","Jacmel","Jérémie","Port-de-Paix","Hinche","Fort-Liberté","Miragoâne","Léogâne","Petit-Goâve","Grand-Goâve","Limbé","Ouanaminthe","Mirebalais"];
 
@@ -170,8 +122,86 @@ function AppProvider({ children }) {
   const [activeConvIdx, setActiveConvIdx] = React.useState(0);
   const [draft, setDraft] = React.useState("");
   const [convs, setConvs] = React.useState(CONVS_BASE);
+  const [selectedServiceId, setSelectedServiceId] = React.useState(null);
+  const [selectedProId, setSelectedProId] = React.useState(null);
+  const [selectedReservationId, setSelectedReservationId] = React.useState(null);
+  const [selectedReservationMontant, setSelectedReservationMontant] = React.useState(0);
+
+  const { isAuthenticated, isClient, isPro: isProRole, userId: authUserId } = useAuth();
+
+  const meQuery = useQuery({
+    queryKey: ["users", authUserId],
+    queryFn: () => usersApi.getUser(authUserId),
+    enabled: isAuthenticated && !!authUserId,
+  });
+  const me = React.useMemo(() => {
+    const u = meQuery.data;
+    const nom = field(u, "nom", "name") || "";
+    const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    return {
+      nom: nom || "Utilisateur",
+      initials: initials || "U",
+      ville: field(u, "zoneIntervention") || field(u, "adresseParDefaut") || "",
+      email: field(u, "e-mail", "email") || "",
+      telephone: field(u, "téléphone", "telephone") || "",
+      photoUrl: authUserId ? usersApi.getUserPhotoUrl(authUserId) : "",
+    };
+  }, [meQuery.data, authUserId]);
+
+  const uploadPhotoMutation = useMutation({
+    mutationFn: (file) => usersApi.uploadUserPhoto(authUserId, file),
+    onSuccess: () => meQuery.refetch(),
+  });
+
+  const fcmTokenMutation = useMutation({
+    mutationFn: (token) => usersApi.updateFcmToken(token),
+  });
+
+  const servicesQuery = useQuery({
+    queryKey: ["services"],
+    queryFn: servicesApi.getServices,
+  });
+  const rawServices = React.useMemo(() => toArray(servicesQuery.data), [servicesQuery.data]);
 
   const go = React.useCallback((key) => navigateTo(key), []);
+
+  // GET /api/services — le catalogue plat vient directement de l'API.
+  // (Défini tôt car `selectedService`, `metiers`, etc. en dépendent plus bas.)
+  const services = React.useMemo(() => rawServices.map((sv, i) => {
+    const id = field(sv, "identifiant", "id");
+    return {
+      id,
+      cat: field(sv, "catégorie", "categorie", "category") || "Autre",
+      title: field(sv, "nom", "name") || "Service",
+      description: field(sv, "description") || "",
+      tag: colorForIndex(i),
+      open: () => { setSelectedServiceId(id); go("service"); },
+    };
+  }), [rawServices]);
+
+  // Catégories dérivées des services réels (regroupement côté client, car
+  // l'API ne renvoie qu'une liste plate de services).
+  const catalogue = React.useMemo(() => {
+    const groups = [];
+    const index = new Map();
+    rawServices.forEach((sv) => {
+      const name = field(sv, "catégorie", "categorie", "category") || "Autre";
+      if (!index.has(name)) {
+        index.set(name, groups.length);
+        groups.push({ name, items: [] });
+      }
+      groups[index.get(name)].items.push(field(sv, "nom", "name") || "Service");
+    });
+    return groups.map((g, i) => ({
+      name: g.name,
+      slug: "cat" + i,
+      color: colorForIndex(i),
+      bg: "#F3F4F6",
+      count: g.items.length,
+      items: g.items,
+      open: () => { setCatFilterState(g.name); go("services"); },
+    }));
+  }, [rawServices]);
 
   const mk = (key) => () => go(key);
 
@@ -200,7 +230,7 @@ function AppProvider({ children }) {
     filtrer: {
       Plomberie: () => setCatFilterAndGo("Plomberie"),
       Electricite: () => setCatFilterAndGo("Électricité"),
-      Menage: () => setCatFilterAndGo("Entretien de la maison"),
+      Menage: () => setCatFilterAndGo("Ménage"),
       Jardinage: () => setCatFilterAndGo("Jardinage"),
     },
     // eslint-disable-next-line
@@ -265,15 +295,289 @@ function AppProvider({ children }) {
 
   // ---- derived data (équivalent de renderVals()) ----
 
-  const allPros = React.useMemo(() => {
-    const list = PROS_BASE.concat(PROS_MORE).map((p) => ({ ...p, open: () => go("profil") }));
-    return list;
-  }, []);
+  // GET /api/prestataires/recherche — recherche publique (l'API accepte des
+  // filtres optionnels ; on lui envoie le texte et la ville recherchés, et on
+  // affine ensuite côté client avec les filtres de catégorie/note/dispo qui ne
+  // sont pas garantis côté serveur).
+  const prestatairesQuery = useQuery({
+    queryKey: ["prestataires", appliedQ, appliedCity],
+    queryFn: () => prestatairesApi.rechercherPrestataires({
+      q: appliedQ || undefined,
+      recherche: appliedQ || undefined,
+      ville: appliedCity || undefined,
+      city: appliedCity || undefined,
+    }),
+  });
+  const rawPros = React.useMemo(() => toArray(prestatairesQuery.data), [prestatairesQuery.data]);
 
-  const pros = React.useMemo(() => PROS_BASE.map((p) => ({ ...p, open: () => go("profil") })), []);
+  const allPros = React.useMemo(() => rawPros.map((p, i) => {
+    const id = getUserId(p);
+    const nom = field(p, "nom", "name") || "Prestataire";
+    const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    const noteNum = Number(field(p, "moyenneNotes", "note")) || 0;
+    return {
+      id,
+      cat: field(p, "compétences", "competences") || "Service à domicile",
+      ratingNum: noteNum,
+      priceNum: Number(field(p, "tarifHoraire")) || 0,
+      initials: initials || "PR",
+      name: nom,
+      job: field(p, "compétences", "competences") || "Prestataire",
+      city: field(p, "zoneIntervention") || "",
+      rating: noteNum ? noteNum.toFixed(1).replace(".", ",") : "—",
+      reviews: Number(field(p, "nombreAvis")) || 0,
+      price: field(p, "tarifHoraire") ? `${field(p, "tarifHoraire")} Gdes/h` : "Sur devis",
+      avatar: colorForIndex(i),
+      verified: true,
+      available: !!field(p, "disponible"),
+      popular: false,
+      open: () => { setSelectedProId(id); go("profil"); },
+    };
+  }), [rawPros]);
+
+  const pros = React.useMemo(() => allPros.slice(0, 4), [allPros]);
   const featured = pros;
+  const prosLoading = prestatairesQuery.isLoading;
+  const prosError = prestatairesQuery.isError;
 
-  const services = React.useMemo(() => SERVICES.map((sv) => ({ ...sv, open: () => go("service") })), []);
+  // ---- Détail service (écran ServiceDetail) ----
+  const selectedService = React.useMemo(() => (
+    services.find((s) => String(s.id) === String(selectedServiceId)) || null
+  ), [services, selectedServiceId]);
+
+  // ---- Détail prestataire (écran Profil) ----
+  const selectedProFromList = React.useMemo(() => (
+    allPros.find((p) => String(p.id) === String(selectedProId)) || null
+  ), [allPros, selectedProId]);
+
+  const selectedProUserQuery = useQuery({
+    queryKey: ["users", selectedProId],
+    queryFn: () => usersApi.getUser(selectedProId),
+    enabled: !!selectedProId,
+  });
+
+  const selectedProStatsQuery = useQuery({
+    queryKey: ["prestataires", selectedProId, "statistiques"],
+    queryFn: () => prestatairesApi.getStatistiques(selectedProId),
+    enabled: !!selectedProId,
+  });
+
+  const selectedProAvisQuery = useQuery({
+    queryKey: ["reservations", selectedProId, "avis"],
+    queryFn: () => reservationsApi.getAvis(selectedProId),
+    enabled: !!selectedProId,
+  });
+
+  const selectedPro = React.useMemo(() => {
+    const u = selectedProUserQuery.data;
+    if (!u && !selectedProFromList) return null;
+    const base = selectedProFromList || {};
+    const nom = field(u, "nom", "name") || base.name || "Prestataire";
+    const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    return {
+      id: selectedProId,
+      name: nom,
+      initials: initials || base.initials || "PR",
+      job: field(u, "compétences", "competences") || base.job || "Prestataire",
+      city: field(u, "zoneIntervention") || base.city || "",
+      price: field(u, "tarifHoraire") || base.priceNum || "",
+      rating: field(u, "moyenneNotes") || base.rating || "—",
+      reviews: field(u, "nombreAvis") || base.reviews || 0,
+      available: field(u, "disponible") ?? base.available ?? false,
+      photoUrl: usersApi.getUserPhotoUrl(selectedProId),
+    };
+  }, [selectedProUserQuery.data, selectedProFromList, selectedProId]);
+
+  const selectedProStats = selectedProStatsQuery.data || null;
+  const selectedProAvis = toArray(selectedProAvisQuery.data);
+
+  // ---- GET /api/reservations/moi/client — historique du client connecté ----
+  const reservationsClientQuery = useQuery({
+    queryKey: ["reservations", "moi", "client"],
+    queryFn: reservationsApi.getMesReservationsClient,
+    enabled: isAuthenticated && isClient,
+  });
+
+  function normalizeReservation(r, i) {
+    const id = field(r, "identifiant", "id");
+    const prestataire = field(r, "prestataire") || {};
+    const client = field(r, "client") || {};
+    const service = field(r, "service") || {};
+    const statutRaw = (field(r, "statut") || "").toString().toUpperCase();
+    return {
+      id,
+      raw: r,
+      titre: field(service, "nom", "name") || "Service",
+      proNom: field(prestataire, "nom", "name") || "Prestataire",
+      proJob: field(prestataire, "compétences", "competences") || "",
+      clientNom: field(client, "nom", "name") || "Client",
+      dateHeure: field(r, "dateHeure") || "",
+      adresse: field(r, "adresse") || "",
+      statut: statutRaw,
+      statutLabel: statutRaw === "ACCEPTEE" ? "Confirmé"
+        : statutRaw === "EN_ATTENTE" ? "En attente"
+        : statutRaw === "EN_COURS" ? "En cours"
+        : statutRaw === "TERMINEE" ? "Terminé"
+        : statutRaw === "REFUSEE" ? "Refusé"
+        : statutRaw === "ANNULEE" ? "Annulé"
+        : statutRaw === "PAYEE" ? "Payé"
+        : statutRaw || "—",
+      montant: field(r, "montant") || 0,
+      key: id ?? i,
+    };
+  }
+
+  const reservationsClient = React.useMemo(() => (
+    toArray(reservationsClientQuery.data).map(normalizeReservation)
+  ), [reservationsClientQuery.data]);
+
+  const clientStats = React.useMemo(() => {
+    const list = reservationsClient;
+    const upcoming = list.filter((r) => r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "EN_COURS" || r.statut === "PAYEE").length;
+    const done = list.filter((r) => r.statut === "TERMINEE").length;
+    const total = list.reduce((sum, r) => sum + (Number(r.montant) || 0), 0);
+    return { upcoming, done, total };
+  }, [reservationsClient]);
+
+  const updateStatutMutation = useMutation({
+    mutationFn: ({ id, statut, prestataireId }) => reservationsApi.updateStatut(id, statut, prestataireId),
+    onSuccess: () => reservationsClientQuery.refetch(),
+  });
+
+  const laisserAvisMutation = useMutation({
+    mutationFn: ({ id, note, commentaire, clientId }) => reservationsApi.laisserAvis(id, { note, commentaire }, clientId),
+    onSuccess: () => reservationsClientQuery.refetch(),
+  });
+
+  // NB: côté backend, PUT /reservations/{id}/statut est réservé aux PRESTATAIRES
+  // (vérification explicite du rôle + de l'ID prestataire). Un client ne peut donc
+  // pas annuler sa propre réservation via cet endpoint : l'appel échouera avec un
+  // 403 "Accès réservé aux prestataires". Il n'existe pas d'endpoint d'annulation
+  // côté client dans l'API fournie.
+  function annulerReservation(id) {
+    updateStatutMutation.mutate({ id, statut: "ANNULEE", prestataireId: authUserId });
+  }
+
+  function laisserAvisSurReservation(id) {
+    const noteStr = window.prompt("Votre note sur 5 (1 à 5) ?", "5");
+    if (!noteStr) return;
+    const note = Number(noteStr);
+    if (!note || note < 1 || note > 5) return;
+    const commentaire = window.prompt("Un commentaire (optionnel) ?", "") || "";
+    laisserAvisMutation.mutate({ id, note, commentaire, clientId: authUserId });
+  }
+
+  // ---- Espace prestataire : agenda, statistiques, revenus 7 jours ----
+  const agendaProQuery = useQuery({
+    queryKey: ["reservations", "me", "prestataire"],
+    queryFn: reservationsApi.getMesReservationsPrestataire,
+    enabled: isAuthenticated && isProRole,
+  });
+
+  const reservationsPro = React.useMemo(() => (
+    toArray(agendaProQuery.data).map(normalizeReservation)
+  ), [agendaProQuery.data]);
+
+  const demandesEnAttente = React.useMemo(() => (
+    reservationsPro.filter((r) => r.statut === "EN_ATTENTE")
+  ), [reservationsPro]);
+
+  const proStatsQuery = useQuery({
+    queryKey: ["prestataires", authUserId, "statistiques"],
+    queryFn: () => prestatairesApi.getStatistiques(authUserId),
+    enabled: isAuthenticated && isProRole && !!authUserId,
+  });
+
+  const proRevenueWeekQuery = useQuery({
+    queryKey: ["prestataires", authUserId, "revenue-week"],
+    queryFn: () => prestatairesApi.getRevenueWeek(authUserId),
+    enabled: isAuthenticated && isProRole && !!authUserId,
+  });
+
+  const proStats = proStatsQuery.data || {};
+  const proRevenueWeek = React.useMemo(() => (
+    toArray(proRevenueWeekQuery.data).map((d, i) => ({
+      jour: field(d, "jour", "day") || ["L", "M", "M", "J", "V", "S", "D"][i] || "",
+      montant: Number(field(d, "montant", "revenu", "value")) || 0,
+    }))
+  ), [proRevenueWeekQuery.data]);
+
+  const accepterDemande = (id) => updateStatutMutation.mutate({ id, statut: "ACCEPTEE", prestataireId: authUserId }, { onSuccess: () => agendaProQuery.refetch() });
+  const refuserDemande = (id) => updateStatutMutation.mutate({ id, statut: "REFUSEE", prestataireId: authUserId }, { onSuccess: () => agendaProQuery.refetch() });
+
+  // ---- Disponibilités du prestataire connecté ----
+  const disposQuery = useQuery({
+    queryKey: ["prestataires", authUserId, "disponibilites"],
+    queryFn: () => prestatairesApi.getDisponibilites(authUserId),
+    enabled: isAuthenticated && isProRole && !!authUserId,
+  });
+
+  const disposList = React.useMemo(() => (
+    toArray(disposQuery.data).map((d, i) => ({
+      id: field(d, "identifiant", "id"),
+      jour: field(d, "jour") || "",
+      heureDebut: field(d, "heureDébut", "heureDebut") || "",
+      heureFin: field(d, "heureFin") || "",
+      key: field(d, "identifiant", "id") ?? i,
+    }))
+  ), [disposQuery.data]);
+
+  const addDisponibiliteMutation = useMutation({
+    mutationFn: (payload) => prestatairesApi.addDisponibilite(authUserId, payload),
+    onSuccess: () => disposQuery.refetch(),
+  });
+
+  const deleteDisponibiliteMutation = useMutation({
+    mutationFn: (disponibiliteId) => prestatairesApi.deleteDisponibilite(disponibiliteId),
+    onSuccess: () => disposQuery.refetch(),
+  });
+
+  const updateAvailabilityMutation = useMutation({
+    mutationFn: (disponible) => prestatairesApi.updateAvailability(authUserId, disponible),
+  });
+
+  function ajouterDisponibilite({ jour, heureDebut, heureFin }) {
+    addDisponibiliteMutation.mutate({ jour, heureDebut: `${heureDebut}:00`, heureFin: `${heureFin}:00` });
+  }
+
+  function supprimerDisponibilite(id) {
+    deleteDisponibiliteMutation.mutate(id);
+  }
+
+  // ---- Admin : litiges ouverts (seul point d'administration exposé par l'API) ----
+  const litigesOuvertsQuery = useQuery({
+    queryKey: ["reservations", "litiges", "ouverts"],
+    queryFn: reservationsApi.getLitigesOuverts,
+    enabled: isAuthenticated,
+  });
+
+  const litigesOuverts = React.useMemo(() => {
+    return toArray(litigesOuvertsQuery.data).map((l, i) => {
+      const reservation = field(l, "réservation", "reservation") || {};
+      const client = field(reservation, "client") || field(l, "client") || {};
+      const prestataire = field(reservation, "prestataire") || field(l, "prestataire") || {};
+      return {
+        litigeId: field(l, "identifiant", "id", "litigeId"),
+        reservationId: field(reservation, "identifiant", "id") || field(l, "reservationId"),
+        motif: field(l, "motif") || "",
+        clientNom: field(client, "nom", "name") || "Client",
+        proNom: field(prestataire, "nom", "name") || "Prestataire",
+        statut: field(l, "statut") || "OUVERT",
+        key: field(l, "identifiant", "id", "litigeId") ?? i,
+      };
+    });
+  }, [litigesOuvertsQuery.data]);
+
+  const resoudreLitigeMutation = useMutation({
+    mutationFn: ({ litigeId, resolution }) => reservationsApi.resoudreLitige(litigeId, resolution),
+    onSuccess: () => litigesOuvertsQuery.refetch(),
+  });
+
+  function resoudreLitige(litigeId) {
+    const resolution = window.prompt("Décision / résolution du litige :", "");
+    if (resolution === null) return;
+    resoudreLitigeMutation.mutate({ litigeId, resolution });
+  }
 
   const prosFiltered = React.useMemo(() => {
     const q = normalize(appliedQ), city = normalize(appliedCity);
@@ -352,7 +656,7 @@ function AppProvider({ children }) {
     roleStyle: { fontSize: 13, fontWeight: 600, color: u.role === "Professionnel" ? "#139356" : "#6B7280" },
   })), []);
 
-  const metiers = React.useMemo(() => CATALOGUE.map((c) => c.name), []);
+  const metiers = React.useMemo(() => catalogue.map((c) => c.name), [catalogue]);
 
   const faqList = React.useMemo(() => FAQ_BASE.map((f, i) => ({
     id: i,
@@ -362,7 +666,7 @@ function AppProvider({ children }) {
     iconRot: faqOpen === i ? { transform: "rotate(45deg)", transition: ".2s" } : { transition: ".2s" },
   })), [faqOpen]);
 
-  const catFilters = React.useMemo(() => ["Tous"].concat(CATALOGUE.map((c) => c.name)), []);
+  const catFilters = React.useMemo(() => ["Tous"].concat(catalogue.map((c) => c.name)), [catalogue]);
   const catFilterList = React.useMemo(() => catFilters.map((f) => ({
     id: f,
     label: f,
@@ -375,8 +679,8 @@ function AppProvider({ children }) {
   })), [catFilters, catFilter]);
 
   const filteredCatalogue = React.useMemo(() => (
-    catFilter === "Tous" ? CATALOGUE : CATALOGUE.filter((c) => c.name === catFilter)
-  ), [catFilter]);
+    catFilter === "Tous" ? catalogue : catalogue.filter((c) => c.name === catFilter)
+  ), [catalogue, catFilter]);
 
   const calDays = React.useMemo(() => buildCalDays(), []);
 
@@ -432,6 +736,36 @@ function AppProvider({ children }) {
     setRolePro: () => setSignupRole("pro"),
     roleClientStyle, roleProStyle,
     services, allPros,
+    prosLoading, prosError,
+    selectedService,
+    selectedPro, selectedProStats, selectedProAvis,
+    reservationsClient,
+    reservationsClientLoading: reservationsClientQuery.isLoading,
+    reservationsClientError: reservationsClientQuery.isError,
+    clientStats,
+    annulerReservation,
+    laisserAvisSurReservation,
+    reservationsPro,
+    reservationsProLoading: agendaProQuery.isLoading,
+    reservationsProError: agendaProQuery.isError,
+    demandesEnAttente,
+    proStats,
+    proRevenueWeek,
+    accepterDemande,
+    refuserDemande,
+    authUserId,
+    me,
+    uploadPhotoMutation,
+    fcmTokenMutation,
+    disposList,
+    disposLoading: disposQuery.isLoading,
+    ajouterDisponibilite,
+    supprimerDisponibilite,
+    updateAvailabilityMutation,
+    litigesOuverts,
+    litigesOuvertsLoading: litigesOuvertsQuery.isLoading,
+    litigesOuvertsError: litigesOuvertsQuery.isError,
+    resoudreLitige,
     screen,
     ...isFlags,
     catFilter,
@@ -455,7 +789,10 @@ function AppProvider({ children }) {
     toggleAvail: () => setFilterAvail((v) => !v),
     toggleVerified: () => setFilterVerified((v) => !v),
     jours, adminUsers, metiers, zonesHaiti: ZONES_HAITI, faqList,
-    catFilters, catFilterList, filteredCatalogue, catalogue: CATALOGUE,
+    catFilters, catFilterList, filteredCatalogue, catalogue,
+    servicesLoading: servicesQuery.isLoading,
+    servicesError: servicesQuery.isError,
+    noServices: !servicesQuery.isLoading && !servicesQuery.isError && services.length === 0,
     convList, activeConv,
     draft, onDraft, onKey, sendMsg,
     nav,
@@ -463,6 +800,10 @@ function AppProvider({ children }) {
     navServices: (screen === "catalogue" || screen === "services") ? "#19355F" : "#4B5563",
     navPros: navColor("pros"),
     pros, featured,
+    selectedServiceId, setSelectedServiceId,
+    selectedProId, setSelectedProId,
+    selectedReservationId, setSelectedReservationId,
+    selectedReservationMontant, setSelectedReservationMontant,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,7 +1,18 @@
 import React from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { createReservation } from "../api/reservations.js";
+import { navigateTo } from "../router.jsx";
 
 function Reserver() {
+  const { userId } = useAuth();
+  const [resDate, setResDate] = React.useState("");
+  const [resTime, setResTime] = React.useState("");
+  const [adresse, setAdresse] = React.useState("12, Rue Pinchinat, Pétion-Ville");
+  const [notes, setNotes] = React.useState("");
+  const [formError, setFormError] = React.useState("");
+
   const {
     calDays,
     isRoleClient,
@@ -93,7 +104,57 @@ function Reserver() {
     navPros,
     pros,
     featured,
+    selectedProId,
+    selectedServiceId,
+    selectedService,
+    setSelectedReservationId,
+    setSelectedReservationMontant,
   } = useApp();
+
+  const proInfo = allPros.find((p) => String(p.id) === String(selectedProId));
+  const montant = proInfo?.priceNum || 0;
+
+  const createReservationMutation = useMutation({
+    mutationFn: createReservation,
+  });
+
+  async function handleContinuer() {
+    setFormError("");
+    if (!selectedProId) {
+      setFormError("Aucun professionnel sélectionné. Revenez à la recherche pour en choisir un.");
+      return;
+    }
+    if (!selectedServiceId) {
+      setFormError("Veuillez d'abord choisir un service depuis la page Services.");
+      return;
+    }
+    if (!resDate || !resTime) {
+      setFormError("Veuillez choisir une date et une heure.");
+      return;
+    }
+    if (!adresse.trim()) {
+      setFormError("Veuillez renseigner une adresse d'intervention.");
+      return;
+    }
+    try {
+      const payload = {
+        clientId: userId,
+        prestataireId: selectedProId,
+        serviceId: selectedServiceId,
+        dateHeure: `${resDate}T${resTime}:00`,
+        adresse: adresse.trim(),
+        montant,
+      };
+      const created = await createReservationMutation.mutateAsync(payload);
+      const resId = created?.identifiant ?? created?.id;
+      if (resId) setSelectedReservationId(resId);
+      setSelectedReservationMontant(montant);
+      navigateTo("paiement");
+    } catch (err) {
+      setFormError(err?.response?.data?.message || "Impossible de créer la réservation. Réessayez.");
+    }
+  }
+
   return (
     <React.Fragment>
   <div className="k358">
@@ -189,32 +250,33 @@ function Reserver() {
             Créneaux disponibles
           </h2>
           <div className="k380">
-            <button className="k381">
+            <button type="button" className={resTime === "08:00" ? "k382" : "k381"} onClick={() => setResTime("08:00")}>
               08h – 10h
             </button>
-            <button className="k381">
+            <button type="button" className={resTime === "10:00" ? "k382" : "k381"} onClick={() => setResTime("10:00")}>
               10h – 12h
             </button>
-            <button className="k382">
+            <button type="button" className={resTime === "14:00" ? "k382" : "k381"} onClick={() => setResTime("14:00")}>
               14h – 16h
             </button>
-            <button className="k381">
+            <button type="button" className={resTime === "16:00" ? "k382" : "k381"} onClick={() => setResTime("16:00")}>
               16h – 18h
             </button>
-            <button className="k383" disabled="">
+            <button type="button" className={resTime === "18:00" ? "k382" : "k381"} onClick={() => setResTime("18:00")}>
               18h – 20h
             </button>
-            <button className="k381">
+            <button type="button" className={resTime === "20:00" ? "k382" : "k381"} onClick={() => setResTime("20:00")}>
               20h – 22h
             </button>
           </div>
+          <input type="date" className="k385" style={{marginTop: 12}} value={resDate} onChange={(e) => setResDate(e.target.value)} />
         </div>
         <div className="k370">
           <h2 className="k384">
             Adresse d'intervention
           </h2>
-          <input className="k385" placeholder="Rue, num\u00e9ro, quartier" defaultValue="12, Rue Pinchinat, P\u00e9tion-Ville" />
-          <textarea className="k386" placeholder="Pr\u00e9cisions pour le professionnel (optionnel)"></textarea>
+          <input className="k385" placeholder="Rue, num\u00e9ro, quartier" value={adresse} onChange={(e) => setAdresse(e.target.value)} />
+          <textarea className="k386" placeholder="Pr\u00e9cisions pour le professionnel (optionnel)" value={notes} onChange={(e) => setNotes(e.target.value)}></textarea>
         </div>
       </div>
       <aside className="k267">
@@ -223,25 +285,25 @@ function Reserver() {
         </h3>
         <div className="k388">
           <span className="k389">
-            MF
+            {proInfo?.initials || "PR"}
           </span>
           <div>
             <div className="k32">
-              Marc Fontaine
+              {proInfo?.name || "Professionnel"}
             </div>
             <div className="k95">
-              Réparation de fuite d'eau
+              {selectedService?.title || "Service"}
             </div>
           </div>
         </div>
         <div className="k390">
           <div className="k391">
             <i className="icon fa-solid fa-calendar-days" style={{fontSize: "16px", color: "#139356"}}></i>
-            15 Janvier 2026
+            {resDate || "Date à choisir"}
           </div>
           <div className="k391">
             <i className="icon fa-solid fa-clock" style={{fontSize: "16px", color: "#139356"}}></i>
-            14h00 – 16h00
+            {resTime ? `${resTime} – ${resTime}` : "Créneau à choisir"}
           </div>
         </div>
         <div className="k392">
@@ -250,23 +312,7 @@ function Reserver() {
               Service
             </span>
             <span className="k394">
-              250 Gdes
-            </span>
-          </div>
-          <div className="k393">
-            <span>
-              Déplacement
-            </span>
-            <span className="k394">
-              100 Gdes
-            </span>
-          </div>
-          <div className="k393">
-            <span>
-              TVA (20%)
-            </span>
-            <span className="k394">
-              50 Gdes
+              {montant ? `${montant} Gdes` : "Sur devis"}
             </span>
           </div>
         </div>
@@ -275,11 +321,14 @@ function Reserver() {
             Total
           </span>
           <span className="k396">
-            400 Gdes
+            {montant ? `${montant} Gdes` : "Sur devis"}
           </span>
         </div>
-        <button className="k275" onClick={nav.paiement}>
-          Continuer vers le paiement
+        {formError ? (
+<p style={{color: "#B91C1C", fontSize: 13.5, fontWeight: 600}}>{formError}</p>
+) : null}
+        <button className="k275" onClick={handleContinuer} disabled={createReservationMutation.isPending}>
+          {createReservationMutation.isPending ? "Création..." : "Continuer vers le paiement"}
         </button>
       </aside>
     </div>

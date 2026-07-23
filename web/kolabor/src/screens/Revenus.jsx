@@ -93,21 +93,28 @@ function Revenus() {
     navPros,
     pros,
     featured,
+    me,
+    proStats,
+    proRevenueWeek,
+    reservationsPro,
+    reservationsProLoading,
   } = useApp();
+  const revenusSemaine = proRevenueWeek.reduce((sum, d) => sum + (d.montant || 0), 0);
+  const transactions = reservationsPro.filter((r) => r.statut === "TERMINEE" || r.statut === "TERMINE" || r.statut === "CONFIRMEE" || r.statut === "CONFIRME");
   return (
     <React.Fragment>
   <div className="k424">
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          MF
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Marc Fontaine
+            {me.nom}
           </div>
           <div className="k489">
-            Pro · Vérifié
+            Pro
           </div>
         </div>
       </div>
@@ -144,30 +151,21 @@ function Revenus() {
       <div className="k769">
         <div className="k770">
           <div className="k771">
-            Solde disponible
+            Revenus (7 derniers jours)
           </div>
           <div className="k772">
-            12 800
+            {revenusSemaine}
             <span className="k773">
               Gdes
             </span>
           </div>
-          <button className="k774">
-            Retirer
-          </button>
         </div>
         <div className="k775">
           <div className="k15">
-            Revenus du mois
+            Nombre de prestations
           </div>
           <div className="k776">
-            18 400
-            <span className="k437">
-              Gdes
-            </span>
-          </div>
-          <div className="k777">
-            ▲ 12% vs mois dernier
+            {proStats.nombrePrestations ?? reservationsPro.length}
           </div>
         </div>
         <div className="k775">
@@ -175,13 +173,10 @@ function Revenus() {
             Total encaissé
           </div>
           <div className="k776">
-            142 600
+            {proStats.revenus ?? proStats.revenuTotal ?? proStats.revenu ?? 0}
             <span className="k437">
               Gdes
             </span>
-          </div>
-          <div className="k778">
-            Depuis janvier 2025
           </div>
         </div>
       </div>
@@ -205,62 +200,26 @@ function Revenus() {
             Montant
           </span>
         </div>
-        <div className="k781">
+        {reservationsProLoading ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Chargement…</p>
+) : transactions.length === 0 ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>Aucune transaction pour le moment.</p>
+) : transactions.map((t) => (
+<div key={t.key} className="k781">
           <span className="k782">
-            Réparation de fuite
+            {t.titre}
           </span>
           <span className="k732">
-            Sophie Martin
+            {t.clientNom}
           </span>
           <span className="k732">
-            15 Jan
+            {t.dateHeure}
           </span>
           <span className="k783">
-            +250 Gdes
+            +{t.montant} Gdes
           </span>
         </div>
-        <div className="k781">
-          <span className="k782">
-            Débouchage canalisation
-          </span>
-          <span className="k732">
-            Ricardo Joseph
-          </span>
-          <span className="k732">
-            13 Jan
-          </span>
-          <span className="k783">
-            +200 Gdes
-          </span>
-        </div>
-        <div className="k781">
-          <span className="k782">
-            Retrait vers MonCash
-          </span>
-          <span className="k732">
-            —
-          </span>
-          <span className="k732">
-            10 Jan
-          </span>
-          <span className="k784">
-            −5 000 Gdes
-          </span>
-        </div>
-        <div className="k781">
-          <span className="k782">
-            Installation sanitaire
-          </span>
-          <span className="k732">
-            Gladys Charles
-          </span>
-          <span className="k732">
-            8 Jan
-          </span>
-          <span className="k783">
-            +850 Gdes
-          </span>
-        </div>
+))}
       </div>
     </div>
   </div>

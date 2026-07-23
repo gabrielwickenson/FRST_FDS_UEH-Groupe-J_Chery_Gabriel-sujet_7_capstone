@@ -2,6 +2,9 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function Parametres() {
+  const fileInputRef = React.useRef(null);
+  const [saveMsg, setSaveMsg] = React.useState("");
+
   const {
     calDays,
     isRoleClient,
@@ -93,21 +96,33 @@ function Parametres() {
     navPros,
     pros,
     featured,
+    me,
+    uploadPhotoMutation,
   } = useApp();
+
+  function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (file) uploadPhotoMutation.mutate(file);
+  }
+
+  function handleEnregistrer() {
+    setSaveMsg("La mise à jour du profil n'est pas encore disponible côté serveur (aucun endpoint de mise à jour n'est exposé par l'API).");
+  }
+
   return (
     <React.Fragment>
   <div className="k424">
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          PJ
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Peter Joseph
+            {me.nom}
           </div>
           <div className="k428">
-            Pétion-Ville
+            {me.ville}
           </div>
         </div>
       </div>
@@ -143,44 +158,37 @@ function Parametres() {
         </h2>
         <div className="k738">
           <span className="k739">
-            PJ
+            {me.initials}
           </span>
-          <button className="k740">
-            Changer la photo
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoChange} style={{display: "none"}} />
+          <button className="k740" onClick={() => fileInputRef.current?.click()} disabled={uploadPhotoMutation.isPending}>
+            {uploadPhotoMutation.isPending ? "Envoi..." : "Changer la photo"}
           </button>
         </div>
-        <div className="k642">
-          <div>
-            <label className="k307">
-              Prénom
-            </label>
-            <input className="k333" defaultValue="Peter" />
-          </div>
-          <div>
-            <label className="k307">
-              Nom
-            </label>
-            <input className="k333" defaultValue="Joseph" />
-          </div>
+        <div className="k643">
+          <label className="k307">
+            Nom complet
+          </label>
+          <input className="k333" defaultValue={me.nom} />
         </div>
         <div className="k643">
           <label className="k307">
             Adresse e-mail
           </label>
-          <input className="k333" defaultValue="peter.joseph@email.ht" />
+          <input className="k333" defaultValue={me.email} />
         </div>
         <div className="k643">
           <label className="k307">
             Téléphone
           </label>
           <div className="k334">
-            <span className="k335">
-              +509
-            </span>
-            <input className="k336" defaultValue="55 66 7788" />
+            <input className="k336" defaultValue={me.telephone} />
           </div>
         </div>
-        <button className="k741">
+        {saveMsg ? (
+<p style={{color: "#B45309", fontSize: 13.5}}>{saveMsg}</p>
+) : null}
+        <button className="k741" onClick={handleEnregistrer}>
           Enregistrer
         </button>
       </div>

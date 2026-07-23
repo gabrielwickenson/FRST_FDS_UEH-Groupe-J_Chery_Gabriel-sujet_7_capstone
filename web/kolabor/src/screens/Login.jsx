@@ -1,7 +1,27 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { navigateTo } from "../router.jsx";
 
 function Login() {
+  const { login, authLoading, authError, setAuthError } = useAuth();
+  const [email, setEmail] = React.useState("");
+  const [motDePasse, setMotDePasse] = React.useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      const user = await login({ email, motDePasse });
+      const role = (user?.["rôle"] || user?.role || "").toString().toUpperCase();
+      if (role.includes("ADMIN")) navigateTo("admin");
+      else if (role.includes("PRO")) navigateTo("dashpro");
+      else navigateTo("dashclient");
+    } catch {
+      // authError est déjà renseigné par le contexte
+    }
+  }
+
   const {
     calDays,
     isRoleClient,
@@ -96,6 +116,7 @@ function Login() {
   } = useApp();
   return (
     <React.Fragment>
+  <div className="auth-shell">
   <div className="k302">
     <div className="k303">
       <h1 className="k304">
@@ -104,12 +125,17 @@ function Login() {
       <p className="k305">
         Connectez-vous pour gérer vos réservations.
       </p>
-      <div className="k306">
+      <form className="k306" onSubmit={handleSubmit}>
+        {authError ? (
+          <div style={{background: "#FEE2E2", color: "#B91C1C", padding: "10px 14px", borderRadius: 10, fontSize: 13.5, fontWeight: 600}}>
+            {authError}
+          </div>
+        ) : null}
         <div>
           <label className="k307">
             Adresse e-mail
           </label>
-          <input className="k308" placeholder="vous@email.com" />
+          <input className="k308" type="email" required placeholder="vous@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
           <div className="k309">
@@ -120,7 +146,7 @@ function Login() {
               Oublié ?
             </span>
           </div>
-          <input className="k308" type="password" defaultValue="motdepasse123" />
+          <input className="k308" type="password" required placeholder="••••••••" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} />
         </div>
         <label className="k186">
           <span className="k312">
@@ -128,19 +154,19 @@ function Login() {
           </span>
           Se souvenir de moi
         </label>
-        <button className="k313" onClick={nav.dashclient}>
-          Se connecter
+        <button className="k313" type="submit" disabled={authLoading}>
+          {authLoading ? "Connexion..." : "Se connecter"}
         </button>
         <div className="k314">
           <span className="k315"></span>
           ou
           <span className="k315"></span>
         </div>
-        <button className="k316">
+        <button className="k316" type="button" disabled>
           <i className="icon fa-brands fa-google" style={{fontSize: "18px"}}></i>
           Continuer avec Google
         </button>
-      </div>
+      </form>
       <p className="k317">
         Pas encore de compte ?
         <span className="k318" onClick={nav.signup}>
@@ -169,6 +195,7 @@ function Login() {
         </div>
       </div>
     </div>
+  </div>
   </div>
     </React.Fragment>
   );
