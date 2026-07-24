@@ -19,4 +19,17 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Intercepteur de réponse : si le token n'est plus valide (401), on nettoie la session
+// pour éviter de rester bloqué avec un token expiré.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
