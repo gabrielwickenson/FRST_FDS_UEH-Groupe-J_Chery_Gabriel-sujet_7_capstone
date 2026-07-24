@@ -2,6 +2,7 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function DashClient() {
+  const [tab, setTab] = React.useState("upcoming");
   const {
     calDays,
     isRoleClient,
@@ -127,14 +128,6 @@ function DashClient() {
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#fff"}}></i>
           Mes réservations
         </div>
-        <div className="k430" onClick={nav.favoris}>
-          <i className="icon fa-solid fa-heart" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Mes favoris
-        </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
-        </div>
         <div className="k430" onClick={nav.factures}>
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Mes paiements
@@ -190,13 +183,13 @@ function DashClient() {
         </div>
       </div>
       <div className="k438">
-        <button className="k439">
+        <button type="button" className={tab === "upcoming" ? "k439" : "k440"} onClick={() => setTab("upcoming")}>
           À venir
         </button>
-        <button className="k440">
+        <button type="button" className={tab === "encours" ? "k439" : "k440"} onClick={() => setTab("encours")}>
           En cours
         </button>
-        <button className="k441">
+        <button type="button" className={tab === "done" ? "k439" : "k441"} onClick={() => setTab("done")}>
           Terminées
         </button>
       </div>
@@ -207,7 +200,17 @@ function DashClient() {
 <p style={{color: "#B91C1C"}}>Impossible de charger vos réservations depuis le serveur.</p>
 ) : reservationsClient.length === 0 ? (
 <p style={{color: "#6B7280"}}>Vous n'avez pas encore de réservation.</p>
-) : reservationsClient.map((r) => {
+) : reservationsClient.filter((r) => {
+  if (tab === "encours") return r.statut === "EN_COURS";
+  if (tab === "done") return r.statut === "TERMINEE" || r.statut === "TERMINE";
+  return r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "PAYEE";
+}).length === 0 ? (
+<p style={{color: "#6B7280"}}>Aucune réservation dans cette catégorie.</p>
+) : reservationsClient.filter((r) => {
+  if (tab === "encours") return r.statut === "EN_COURS";
+  if (tab === "done") return r.statut === "TERMINEE" || r.statut === "TERMINE";
+  return r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "PAYEE";
+}).map((r) => {
   const isDone = r.statut === "TERMINEE" || r.statut === "TERMINE";
   return (
 <div key={r.key} className="k443">
@@ -238,9 +241,6 @@ function DashClient() {
             </div>
           </div>
           <div className="k451">
-            <button className="k453" onClick={nav.messages}>
-              Envoyer un message
-            </button>
             {isDone ? (
 <button className="k460" onClick={() => laisserAvisSurReservation(r.id)}>
               <i className="icon fa-solid fa-star" style={{fontSize: "15px", color: "#fff"}}></i>

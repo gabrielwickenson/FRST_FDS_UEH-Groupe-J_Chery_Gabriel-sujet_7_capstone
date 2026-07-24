@@ -146,13 +146,9 @@ function DashPro() {
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
         </div>
-        <div className="k430">
-          <i className="icon fa-solid fa-star" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Avis clients
-        </div>
-        <div className="k430">
-          <i className="icon fa-solid fa-chart-line" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Statistiques
+        <div className="k430" onClick={nav.params}>
+          <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Paramètres
         </div>
       </div>
     </aside>
@@ -166,10 +162,6 @@ function DashPro() {
             Voici votre activité cette semaine.
           </p>
         </div>
-        <button className="k495">
-          <i className="icon fa-solid fa-plus" style={{fontSize: "17px", color: "#fff"}}></i>
-          Ajouter un service
-        </button>
       </div>
       <div className="k433">
         <div className="k434">

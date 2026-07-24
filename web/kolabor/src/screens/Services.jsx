@@ -3,6 +3,7 @@ import { useApp } from "../AppContext.jsx";
 import { img } from "../images.js";
 
 function Services() {
+  const [searchQ, setSearchQ] = React.useState("");
   const {
     calDays,
     isRoleClient,
@@ -84,6 +85,7 @@ function Services() {
     catFilters,
     catFilterList,
     filteredCatalogue,
+    filteredServices,
     catalogue,
     convList,
     activeConv,
@@ -98,6 +100,10 @@ function Services() {
     pros,
     featured,
   } = useApp();
+  const q = searchQ.trim().toLowerCase();
+  const visibleServices = q
+    ? filteredServices.filter((s) => s.title.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q))
+    : filteredServices;
   return (
     <React.Fragment>
   <section className="k128">
@@ -120,37 +126,21 @@ function Services() {
       <div className="k135">
         <div className="k136">
           <i className="icon fa-solid fa-magnifying-glass" style={{fontSize: "20px", color: "#139356"}}></i>
-          <input className="k137" placeholder="Rechercher un service\u2026" />
+          <input className="k137" placeholder="Rechercher un service\u2026" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
         </div>
-        <button className="k138" onClick={nav.pros}>
-          Rechercher
+        <button type="button" className="k138" onClick={() => setSearchQ("")}>
+          Effacer
         </button>
       </div>
     </div>
   </section>
   <section className="k139">
     <div className="k140">
-      <button className="k141">
-        Tous
-      </button>
-      <button className="k142">
-        Plomberie
-      </button>
-      <button className="k142">
-        Électricité
-      </button>
-      <button className="k142">
-        Peinture
-      </button>
-      <button className="k142">
-        Jardinage
-      </button>
-      <button className="k142">
-        Ménage
-      </button>
-      <button className="k142">
-        Climatisation
-      </button>
+      {catFilterList.map((f, __i) => (
+<button key={f.id ?? __i} type="button" onClick={f.pick} style={f.chipStyle}>
+  {f.label}
+</button>
+))}
     </div>
     <div className="k143">
       {servicesLoading ? (
@@ -159,7 +149,9 @@ function Services() {
         <p style={{gridColumn: "1 / -1", color: "#B91C1C"}}>Impossible de charger les services depuis le serveur.</p>
       ) : noServices ? (
         <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Aucun service disponible pour le moment.</p>
-      ) : services.map((sv, __i) => (
+      ) : visibleServices.length === 0 ? (
+        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Aucun service ne correspond à cette recherche.</p>
+      ) : visibleServices.map((sv, __i) => (
 <div key={sv.id ?? __i} className="k144">
   <div className="k145">
     <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt={sv.cat} style={{objectFit: "cover"}} />

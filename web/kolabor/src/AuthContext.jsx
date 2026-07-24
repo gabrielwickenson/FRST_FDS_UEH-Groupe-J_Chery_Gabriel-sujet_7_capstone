@@ -47,7 +47,7 @@ function AuthProvider({ children }) {
     setAuthLoading(true);
     setAuthError("");
     try {
-      const data = await authApi.login({ "e-mail": email, motDePasse });
+      const data = await authApi.login({ email, motDePasse });
       const { token: t, user: u } = extractAuthPayload(data);
       persist(t, u);
       return u;

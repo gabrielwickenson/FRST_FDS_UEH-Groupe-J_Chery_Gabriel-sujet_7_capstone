@@ -248,13 +248,13 @@ function Signup() {
             <label className="k307">
               Prénom
             </label>
-            <input className="k333" placeholder="Peter" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
+            <input className="k333" placeholder="Prénom" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
           </div>
           <div>
             <label className="k307">
               Nom
             </label>
-            <input className="k333" placeholder="Joseph" value={nomField} onChange={(e) => setNomField(e.target.value)} />
+            <input className="k333" placeholder="Nom" value={nomField} onChange={(e) => setNomField(e.target.value)} />
           </div>
         </div>
         <div>

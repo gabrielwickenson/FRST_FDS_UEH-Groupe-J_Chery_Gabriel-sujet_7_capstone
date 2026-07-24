@@ -137,9 +137,9 @@ function Dispos() {
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
         </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
+        <div className="k430" onClick={nav.params}>
+          <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Paramètres
         </div>
       </div>
     </aside>

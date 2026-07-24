@@ -135,7 +135,7 @@ function Tarifs() {
         </div>
         <div className="k290">
           <i className="icon fa-solid fa-check" style={{fontSize: "18px", color: "#139356"}}></i>
-          Messagerie avec les pros
+          Suivi de vos réservations
         </div>
         <div className="k290">
           <i className="icon fa-solid fa-check" style={{fontSize: "18px", color: "#139356"}}></i>

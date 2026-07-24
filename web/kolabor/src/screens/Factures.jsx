@@ -120,14 +120,6 @@ function Factures() {
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Mes réservations
         </div>
-        <div className="k430" onClick={nav.favoris}>
-          <i className="icon fa-solid fa-heart" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Mes favoris
-        </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
-        </div>
         <div className="k431">
           <i className="icon fa-solid fa-file-lines" style={{fontSize: "18px", color: "#fff"}}></i>
           Factures

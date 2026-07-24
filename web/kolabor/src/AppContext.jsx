@@ -34,6 +34,11 @@ function normalize(x) {
 // `services` et `catalogue` (catégories) viennent maintenant en direct de
 // GET /api/services — plus de données statiques ici.
 
+// Liste fixe des métiers proposés à l'inscription (et des catégories de filtre
+// sur la recherche de pros), pour garantir que ces 5 métiers apparaissent
+// toujours, indépendamment du contenu réel de la table `service`.
+const METIERS_PRO = ["Plomberie", "Électricité", "Ménage", "Climatisation", "Jardinage"];
+
 const ZONES_HAITI = ["Port-au-Prince","Pétion-Ville","Delmas","Carrefour","Tabarre","Cité Soleil","Croix-des-Bouquets","Kenscoff","Thomassin","Croix-des-Missions","Cap-Haïtien","Les Cayes","Gonaïves","Saint-Marc","Jacmel","Jérémie","Port-de-Paix","Hinche","Fort-Liberté","Miragoâne","Léogâne","Petit-Goâve","Grand-Goâve","Limbé","Ouanaminthe","Mirebalais"];
 
 const FAQ_BASE = [
@@ -127,7 +132,7 @@ function AppProvider({ children }) {
   const [selectedReservationId, setSelectedReservationId] = React.useState(null);
   const [selectedReservationMontant, setSelectedReservationMontant] = React.useState(0);
 
-  const { isAuthenticated, isClient, isPro: isProRole, userId: authUserId } = useAuth();
+  const { isAuthenticated, isClient, isPro: isProRole, userId: authUserId, user: authUser } = useAuth();
 
   const meQuery = useQuery({
     queryKey: ["users", authUserId],
@@ -136,20 +141,32 @@ function AppProvider({ children }) {
   });
   const me = React.useMemo(() => {
     const u = meQuery.data;
-    const nom = field(u, "nom", "name") || "";
+    // Le nom (et les autres infos de base) sont déjà présents dans la réponse
+    // de login/register — on les utilise en attendant que le profil complet
+    // (GET /users/{id}) se charge, pour ne jamais afficher un nom générique
+    // "Utilisateur" à la place du vrai nom de la personne connectée.
+    const nom = field(u, "nom", "name") || field(authUser, "nom", "name") || "";
     const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
     return {
-      nom: nom || "Utilisateur",
-      initials: initials || "U",
+      nom,
+      initials: initials || "",
       ville: field(u, "zoneIntervention") || field(u, "adresseParDefaut") || "",
-      email: field(u, "e-mail", "email") || "",
-      telephone: field(u, "téléphone", "telephone") || "",
+      email: field(u, "e-mail", "email") || field(authUser, "e-mail", "email") || "",
+      telephone: field(u, "téléphone", "telephone") || field(authUser, "téléphone", "telephone") || "",
+      tarifHoraire: field(u, "tarifHoraire") ?? "",
+      competences: field(u, "compétences", "competences") || "",
+      zoneIntervention: field(u, "zoneIntervention") || "",
       photoUrl: authUserId ? usersApi.getUserPhotoUrl(authUserId) : "",
     };
-  }, [meQuery.data, authUserId]);
+  }, [meQuery.data, authUserId, authUser]);
 
   const uploadPhotoMutation = useMutation({
     mutationFn: (file) => usersApi.uploadUserPhoto(authUserId, file),
+    onSuccess: () => meQuery.refetch(),
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: (payload) => prestatairesApi.updateProfile(authUserId, payload),
     onSuccess: () => meQuery.refetch(),
   });
 
@@ -210,13 +227,13 @@ function AppProvider({ children }) {
     profil: mk("profil"), service: mk("service"), comment: mk("comment"),
     login: mk("login"), signup: mk("signup"), reserver: mk("reserver"),
     paiement: mk("paiement"), confirm: mk("confirm"),
-    dashclient: mk("dashclient"), messages: mk("messages"),
+    dashclient: mk("dashclient"),
     dashpro: mk("dashpro"), admin: mk("admin"), catalogue: mk("catalogue"),
     prolanding: mk("prolanding"),
     tousServices: () => { setCatFilterState("Tous"); go("catalogue"); },
     apropos: mk("apropos"), tarifs: mk("tarifs"), blog: mk("blog"),
     aide: mk("aide"), contact: mk("contact"), faq: mk("faq"), legal: mk("legal"),
-    notfound: mk("notfound"), favoris: mk("favoris"), factures: mk("factures"),
+    notfound: mk("notfound"), factures: mk("factures"),
     creerCompte: () => go(signupRole === "pro" ? "dashpro" : "confirm"),
     params: mk("params"), messervices: mk("messervices"), dispos: mk("dispos"), revenus: mk("revenus"),
     devenirPro: () => { setSignupRole("pro"); go("signup"); },
@@ -302,10 +319,8 @@ function AppProvider({ children }) {
   const prestatairesQuery = useQuery({
     queryKey: ["prestataires", appliedQ, appliedCity],
     queryFn: () => prestatairesApi.rechercherPrestataires({
-      q: appliedQ || undefined,
-      recherche: appliedQ || undefined,
-      ville: appliedCity || undefined,
-      city: appliedCity || undefined,
+      service: appliedQ || undefined,
+      zone: appliedCity || undefined,
     }),
   });
   const rawPros = React.useMemo(() => toArray(prestatairesQuery.data), [prestatairesQuery.data]);
@@ -603,7 +618,7 @@ function AppProvider({ children }) {
   }, [appliedQ, appliedCity]);
 
   const filterCatUI = React.useMemo(() => (
-    ["Plomberie", "Électricité", "Ménage", "Climatisation", "Jardinage"].map((c) => ({
+    METIERS_PRO.map((c) => ({
       id: c,
       name: c,
       checked: !!filterCats[c],
@@ -656,7 +671,11 @@ function AppProvider({ children }) {
     roleStyle: { fontSize: 13, fontWeight: 600, color: u.role === "Professionnel" ? "#139356" : "#6B7280" },
   })), []);
 
-  const metiers = React.useMemo(() => catalogue.map((c) => c.name), [catalogue]);
+  // Le Signup (choix du métier du pro) utilise désormais les vraies
+  // catégories de la table `service` (via GET /api/services). La liste fixe
+  // METIERS_PRO ne sert plus que de secours pendant le chargement ou si la
+  // table est vide/l'API est en erreur, pour ne jamais laisser le menu vide.
+  const metiers = catalogue.length > 0 ? catalogue.map((c) => c.name) : METIERS_PRO;
 
   const faqList = React.useMemo(() => FAQ_BASE.map((f, i) => ({
     id: i,
@@ -681,6 +700,13 @@ function AppProvider({ children }) {
   const filteredCatalogue = React.useMemo(() => (
     catFilter === "Tous" ? catalogue : catalogue.filter((c) => c.name === catFilter)
   ), [catalogue, catFilter]);
+
+  // Services filtrés par catégorie pour la page /services (les puces de
+  // filtre ci-dessus n'agissaient sur rien auparavant : ni cliquables, ni
+  // reliées à la liste affichée).
+  const filteredServices = React.useMemo(() => (
+    catFilter === "Tous" ? services : services.filter((s) => s.cat === catFilter)
+  ), [services, catFilter]);
 
   const calDays = React.useMemo(() => buildCalDays(), []);
 
@@ -719,12 +745,12 @@ function AppProvider({ children }) {
     isProfil: screen === "profil", isService: screen === "service", isComment: screen === "comment",
     isLogin: screen === "login", isSignup: screen === "signup", isReserver: screen === "reserver",
     isPaiement: screen === "paiement", isConfirm: screen === "confirm",
-    isDashClient: screen === "dashclient", isMessages: screen === "messages",
+    isDashClient: screen === "dashclient",
     isDashPro: screen === "dashpro", isAdmin: screen === "admin",
     isCatalogue: screen === "catalogue", isProLanding: screen === "prolanding",
     isApropos: screen === "apropos", isTarifs: screen === "tarifs", isBlog: screen === "blog",
     isAide: screen === "aide", isContact: screen === "contact", isFaq: screen === "faq", isLegal: screen === "legal",
-    isNotFound: screen === "notfound", isFavoris: screen === "favoris", isFactures: screen === "factures",
+    isNotFound: screen === "notfound", isFactures: screen === "factures",
     isParams: screen === "params", isMesServices: screen === "messervices", isDispos: screen === "dispos", isRevenus: screen === "revenus",
   };
 
@@ -754,8 +780,10 @@ function AppProvider({ children }) {
     accepterDemande,
     refuserDemande,
     authUserId,
+    isProRole,
     me,
     uploadPhotoMutation,
+    updateProfileMutation,
     fcmTokenMutation,
     disposList,
     disposLoading: disposQuery.isLoading,
@@ -789,7 +817,7 @@ function AppProvider({ children }) {
     toggleAvail: () => setFilterAvail((v) => !v),
     toggleVerified: () => setFilterVerified((v) => !v),
     jours, adminUsers, metiers, zonesHaiti: ZONES_HAITI, faqList,
-    catFilters, catFilterList, filteredCatalogue, catalogue,
+    catFilters, catFilterList, filteredCatalogue, filteredServices, catalogue,
     servicesLoading: servicesQuery.isLoading,
     servicesError: servicesQuery.isError,
     noServices: !servicesQuery.isLoading && !servicesQuery.isError && services.length === 0,

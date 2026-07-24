@@ -161,10 +161,6 @@ function Profil() {
         <button className="k239" onClick={nav.reserver}>
           Réserver
         </button>
-        <button className="k240" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "17px", color: "#19355F"}}></i>
-          Message
-        </button>
       </div>
     </div>
     <div className="k241">

@@ -174,9 +174,6 @@ function ServiceDetail() {
           <button className="k297" onClick={nav.reserver}>
             Réserver ce service
           </button>
-          <button className="k298" onClick={nav.messages}>
-            Demander un devis
-          </button>
         </div>
         <div className="k299">
           <div className="k22">
