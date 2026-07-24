@@ -10,6 +10,11 @@ export function updateAvailability(id, disponible) {
   return api.put(`/prestataires/${id}/availability`, { disponible }).then((r) => r.data);
 }
 
+// PUT /api/prestataires/{id} — Mettre à jour le profil du prestataire (tarif horaire, compétences, zone, etc.)
+export function updateProfile(id, payload) {
+  return api.put(`/prestataires/${id}`, payload).then((r) => r.data);
+}
+
 // GET /api/prestataires/{id}/disponibilites — Lister les disponibilités d'un prestataire
 export function getDisponibilites(id) {
   return api.get(`/prestataires/${id}/disponibilites`).then((r) => r.data);
