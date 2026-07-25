@@ -144,6 +144,11 @@ fun ClientDashboard(
                         )
                     }
                     Spacer(modifier = Modifier.width(space12))
+
+                    // Bouton de déconnexion existant
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = Color.White)
+                    }
                 }
             )
         },

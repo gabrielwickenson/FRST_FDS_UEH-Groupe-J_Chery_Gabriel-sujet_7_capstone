@@ -134,4 +134,11 @@ interface ApiService {
         @Query("fcmToken") token: String,
         @Query("userId") userId: Long
     ): Response<Unit>
+
+    @POST("/api/reservations/{id}/paiement")
+    suspend fun simulatePayment(
+        @Path("id") reservationId: Long,
+        @Query("modePaiement") modePaiement: String,
+        @Query("clientId") clientId: Long
+    ): Response<Unit>
 }

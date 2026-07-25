@@ -305,6 +305,13 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 label = "Version 1.0.0",
                                 onClick = { /* rien */ }
                             )
+                            // ✅ BOUTON DE DÉCONNEXION
+                            SettingsItem(
+                                icon = Icons.Default.Logout,
+                                label = "Déconnexion",
+                                isDestructive = true,
+                                onClick = onLogout
+                            )
                         }
                     }
 
@@ -363,6 +370,7 @@ fun SettingsItem(
     icon: ImageVector,
     label: String,
     subtitle: String? = null,
+    isDestructive: Boolean = false,   // ← ajout
     onClick: () -> Unit
 ) {
     Row(
@@ -375,7 +383,7 @@ fun SettingsItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = NavyPrimary,
+            tint = if (isDestructive) ErrorColor else NavyPrimary,   // ← rouge si destructif
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
@@ -385,7 +393,7 @@ fun SettingsItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,
-                color = NavyPrimary
+                color = if (isDestructive) ErrorColor else NavyPrimary   // ← rouge si destructif
             )
             if (subtitle != null) {
                 Text(

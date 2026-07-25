@@ -60,16 +60,12 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // Récupérer l'ID utilisateur depuis TokenManager (qui doit être initialisé)
-        // Cela nécessite un contexte, et TokenManager est déjà défini plus tard dans KolaborApp.
-        // Pour simplifier, on utilise un CoroutineScope global.
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result
                 Log.d("FCM", "🔥 Token : $token")
                 Toast.makeText(this, "Token FCM récupéré", Toast.LENGTH_SHORT).show()
 
-                // Envoyer le token au backend
                 GlobalScope.launch(Dispatchers.IO) {
                     val tokenManager = TokenManager(applicationContext)
                     val userId = tokenManager.getUserId()
@@ -111,7 +107,7 @@ fun KolaborApp() {
     val showRegister = remember { mutableStateOf(false) }
     val isLoggedIn = remember { mutableStateOf(false) }
     val userRole = remember { mutableStateOf<String?>(null) }
-    val userId = remember { mutableStateOf<Long?>(null) } // ✅ Renommé pour tous les rôles
+    val userId = remember { mutableStateOf<Long?>(null) }
 
     // États pour ClientDashboard
     val clientTab = remember { mutableStateOf(0) }
@@ -123,13 +119,15 @@ fun KolaborApp() {
     val showReservationDetail = remember { mutableStateOf(false) }
     val selectedReservation = remember { mutableStateOf<Reservation?>(null) }
     val userRepository = remember { UserRepository(context) }
-
-    // Déclarer l'état pour le nom
     val userName = remember { mutableStateOf<String?>(null) }
+
+    // ✅ Nouveaux états pour le paiement
+    val showPayment = remember { mutableStateOf(false) }
+    val selectedReservationForPayment = remember { mutableStateOf<Reservation?>(null) }
+    val selectedPaymentMode = remember { mutableStateOf<String?>(null) }
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
-        // Chargement de la session
         tokenManager.getUserRole().collectLatest { role ->
             val token = tokenManager.getToken()
             if (role != null && token != null) {
@@ -137,7 +135,6 @@ fun KolaborApp() {
                 isLoggedIn.value = true
                 showOnboarding.value = false
                 userId.value = tokenManager.getUserId() ?: 0L
-                // ✅ Récupérer le nom
                 userName.value = tokenManager.getUserName() ?: "Utilisateur"
             }
         }
@@ -153,6 +150,25 @@ fun KolaborApp() {
                     when (userRole.value) {
                         "CLIENT" -> {
                             when {
+                                showPayment.value && selectedReservationForPayment.value != null -> {
+                                    PaymentScreen(
+                                        reservation = selectedReservationForPayment.value!!,
+                                        clientId = userId.value ?: 0L,
+                                        onPaymentSuccess = { reservation, mode ->
+                                            // On peut afficher le reçu ou juste fermer
+                                            selectedReservationForPayment.value = reservation
+                                            selectedPaymentMode.value = mode
+                                            // Ici vous pouvez afficher le reçu (ou un toast)
+                                            Toast.makeText(context, "Paiement effectué avec $mode", Toast.LENGTH_LONG).show()
+                                            showPayment.value = false
+                                            selectedReservationForPayment.value = null
+                                        },
+                                        onBack = {
+                                            showPayment.value = false
+                                            selectedReservationForPayment.value = null
+                                        }
+                                    )
+                                }
                                 showPrestataireDetail.value && selectedPrestataire.value != null -> {
                                     PrestataireDetailScreen(
                                         prestataire = selectedPrestataire.value!!,
@@ -188,13 +204,12 @@ fun KolaborApp() {
                                                 showReservations.value = true
                                             }
                                         },
-                                        userName = userName.value ?: "Client"   //  Passer le nom
+                                        userName = userName.value ?: "Client"
                                     )
                                 }
                             }
                         }
                         "PRESTATAIRE" -> {
-                            // ✅ PASSER L'ID ICI
                             PrestataireDashboard(
                                 onLogout = {
                                     coroutineScope.launch {
@@ -205,8 +220,8 @@ fun KolaborApp() {
                                         showLogin.value = true
                                     }
                                 },
-                                userId = userId.value ?: 0L,   //  ID passé !
-                                userName = userName.value ?: "Prestataire"   //  Passer le nom
+                                userId = userId.value ?: 0L,
+                                userName = userName.value ?: "Prestataire"
                             )
                         }
                         else -> {
@@ -224,7 +239,6 @@ fun KolaborApp() {
                     )
                 }
                 showLogin.value -> {
-                    // ✅ Signature corrigée : onLoginSuccess reçoit (role, id)
                     LoginScreen(
                         onLoginSuccess = { role, id ->
                             Log.d("MainActivity", "✅ Rôle : $role, ID : $id")
@@ -232,7 +246,6 @@ fun KolaborApp() {
                             isLoggedIn.value = true
                             showLogin.value = false
                             userId.value = id
-                            // Sauvegarder dans TokenManager pour les autres usages
                             coroutineScope.launch {
                                 tokenManager.saveUserId(id)
                                 tokenManager.saveUserRole(role)
@@ -261,7 +274,7 @@ fun KolaborApp() {
                 }
             }
 
-            // Overlays (inchangés)
+            // Overlays
             if (showReservations.value) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
                     ReservationsScreen(
@@ -317,9 +330,11 @@ fun KolaborApp() {
                     Column(modifier = Modifier.fillMaxWidth().height(screenHeight * 0.75f)) {
                         BookScreen(
                             onBack = { showBookingBottomSheet.value = false },
-                            onBookingSuccess = {
+                            onNavigateToPayment = { reservation ->
+                                // ✅ Rediriger vers l'écran de paiement
+                                selectedReservationForPayment.value = reservation
+                                showPayment.value = true
                                 showBookingBottomSheet.value = false
-                                Toast.makeText(context, "Réservation réussie !", Toast.LENGTH_LONG).show()
                             },
                             prestataire = selectedPrestataireForBooking.value!!,
                             clientId = userId.value ?: 0L

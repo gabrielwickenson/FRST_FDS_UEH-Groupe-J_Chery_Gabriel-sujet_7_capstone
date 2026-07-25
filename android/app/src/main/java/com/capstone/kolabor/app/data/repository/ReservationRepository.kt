@@ -68,4 +68,14 @@ class ReservationRepository(private val context: Context) {
             false
         }
     }
+
+    suspend fun simulatePayment(reservationId: Long, modePaiement: String, clientId: Long): Boolean {
+        return try {
+            val response = RetrofitInstance.getApi(context).simulatePayment(reservationId, modePaiement, clientId)
+            response.isSuccessful
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }
