@@ -1,5 +1,6 @@
 package com.capstone.kolabor.app.ui.dashboard
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,7 +54,10 @@ import com.capstone.kolabor.app.ui.client.FilterBottomSheet
 import com.capstone.kolabor.app.ui.client.PrestataireCard
 import com.capstone.kolabor.app.ui.client.ReservationDetailScreen
 import com.capstone.kolabor.app.ui.client.ReservationsScreen
+import com.capstone.kolabor.app.ui.client.ServiceDetailScreen
+import com.capstone.kolabor.app.ui.client.ServiceListScreen
 import com.capstone.kolabor.app.ui.client.formatDate
+import com.capstone.kolabor.app.ui.help.HelpScreen
 import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.kolabor.app.R
@@ -71,7 +75,8 @@ fun ClientDashboard(
     selectedPrestataire: MutableState<Prestataire?>,
     currentTab: MutableState<Int>,
     onTabChanged: (Int) -> Unit,
-    onNavigateToReservations: () -> Unit
+    onNavigateToReservations: () -> Unit,
+    onNavigateToPayment: (Reservation) -> Unit   // ✅ Ajout
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -82,6 +87,12 @@ fun ClientDashboard(
     val prestataireRepo = remember { PrestataireRepository(context) }
     var selectedReservation by remember { mutableStateOf<Reservation?>(null) }
     var unreadNotifications by remember { mutableStateOf(0) }
+    // À l'intérieur de ClientDashboard
+    var showServiceList by remember { mutableStateOf(false) }
+    var selectedServiceDetail by remember { mutableStateOf<Service?>(null) }
+    var serviceFilterForExplorer by remember { mutableStateOf<String?>(null) }
+    var bookingPromptService by remember { mutableStateOf<Service?>(null) }
+    var showHelp by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentTab.value) {
         selectedTab = currentTab.value
@@ -108,23 +119,63 @@ fun ClientDashboard(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
-                    IconButton(onClick = { /* TODO: navigation notifications */ }) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadNotifications > 0) {
-                                    Badge(containerColor = ErrorColor, contentColor = Color.White) {
-                                        Text(
-                                            text = if (unreadNotifications > 9) "9+" else unreadNotifications.toString(),
-                                            style = MaterialTheme.typography.labelSmall
-                                        )
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = Color.White)
-                        }
+
+                    // ✅ NOUVEAU : Menu déroulant (trois petits points)
+                    var showMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
                     }
-                    Spacer(modifier = Modifier.width(space8))
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(Color.White)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Services", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                showServiceList = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Notifications", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                // Ouvrir les notifications (vous pouvez utiliser le bottom sheet existant)
+                                Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Aide", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                showHelp = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Help, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Confidentialité", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        // Option déconnexion (facultatif, car déjà présente en icône)
+                        DropdownMenuItem(
+                            text = { Text("Déconnexion", color = ErrorColor) },
+                            onClick = {
+                                showMenu = false
+                                onLogout()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null, tint = ErrorColor) }
+                        )
+                    }
+                    // Icône profil (déjà présente)
                     Box(
                         modifier = Modifier
                             .size(34.dp)
@@ -144,11 +195,6 @@ fun ClientDashboard(
                         )
                     }
                     Spacer(modifier = Modifier.width(space12))
-
-                    // Bouton de déconnexion existant
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = Color.White)
-                    }
                 }
             )
         },
@@ -186,6 +232,9 @@ fun ClientDashboard(
                         label = { Text(text = title, style = MaterialTheme.typography.labelSmall) },
                         selected = selectedTab == index,
                         onClick = {
+                            // ✅ Fermer les overlays avant de changer d'onglet
+                            showServiceList = false
+                            selectedServiceDetail = null
                             selectedTab = index
                             onTabChanged(index)
                         },
@@ -202,557 +251,316 @@ fun ClientDashboard(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            when (selectedTab) {
-                0 -> {
-                    var searchQuery by remember { mutableStateOf("") }
-                    var prestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
-                    var isLoadingPrestataires by remember { mutableStateOf(true) }
-
-                    var nextReservation by remember { mutableStateOf<Reservation?>(null) }
-                    var isLoadingNextReservation by remember { mutableStateOf(true) }
-                    val reservationRepo = remember { ReservationRepository(context) }
-
-                    var topPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
-                    var isLoadingTop by remember { mutableStateOf(true) }
-
-                    LaunchedEffect(Unit) {
-                        isLoadingPrestataires = true
-                        val data = prestataireRepo.searchPrestataires(service = null, noteMin = null, zone = null)
-                        if (data != null) prestataires = data
-                        isLoadingPrestataires = false
-
-                        isLoadingNextReservation = true
-                        val reservations = reservationRepo.getReservationsByClient(clientId)
-                        if (reservations != null) {
-                            totalReservations = reservations.size
-                            val active = reservations.filter {
-                                it.statut == "ACCEPTEE" || it.statut == "EN_COURS"
-                            }.sortedBy { it.dateHeure }
-                            nextReservation = active.firstOrNull()
-                        }
-                        isLoadingNextReservation = false
-
-                        isLoadingTop = true
-                        val topData = prestataireRepo.searchPrestataires(service = null, noteMin = 4.0, zone = null)
-                        if (topData != null) {
-                            val minNote = BigDecimal.valueOf(4.0)
-                            topPrestataires = topData
-                                .filter { it.moyenneNotes != null && it.moyenneNotes!! >= minNote }
-                                .sortedByDescending { it.moyenneNotes }
-                                .take(5)
-                        }
-                        isLoadingTop = false
+            // ─── 1. OVERLAYS PRIORITAIRES ───
+            if (selectedServiceDetail != null) {
+                ServiceDetailScreen(
+                    service = selectedServiceDetail!!,
+                    onBack = {
+                        selectedServiceDetail = null
+                        showServiceList = true
+                    },
+                    onReserveService = { service ->
+                        bookingPromptService = service
                     }
-
-                    val filteredPrestataires by remember {
-                        derivedStateOf {
-                            var list = prestataires
-                            if (selectedServiceFilter != null) {
-                                list = list.filter {
-                                    it.competences?.contains(selectedServiceFilter!!, ignoreCase = true) == true
-                                }
-                            }
-                            if (searchQuery.isNotBlank()) {
-                                list = list.filter {
-                                    it.nom.contains(searchQuery, ignoreCase = true) ||
-                                            (it.competences?.contains(searchQuery, ignoreCase = true) == true) ||
-                                            (it.zoneIntervention?.contains(searchQuery, ignoreCase = true) == true)
-                                }
-                            }
-                            list
-                        }
+                )
+            } else if (showServiceList) {
+                ServiceListScreen(
+                    onBack = { showServiceList = false },
+                    onServiceClick = { service ->
+                        selectedServiceDetail = service
+                        showServiceList = false
                     }
+                )
+            } else if (showHelp) {
+                HelpScreen(
+                   onBack = { showHelp = false }
+                )
+            } else {
+                // ─── 2. CONTENU PRINCIPAL ───
+                when (selectedTab) {
+                    0 -> {
+                        var searchQuery by remember { mutableStateOf("") }
+                        var prestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
+                        var isLoadingPrestataires by remember { mutableStateOf(true) }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = space24, vertical = space24)
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Bonjour, $userName !",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = NavyPrimary
-                        )
-                        Text(
-                            text = "Trouvez et gérez vos services en un clin d'œil.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = NavyPrimary
-                        )
-                        Spacer(modifier = Modifier.height(space24))
+                        var nextReservation by remember { mutableStateOf<Reservation?>(null) }
+                        var isLoadingNextReservation by remember { mutableStateOf(true) }
+                        val reservationRepo = remember { ReservationRepository(context) }
 
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            label = { Text("Rechercher un prestataire") },
-                            placeholder = { Text("Nom, compétence, zone...", color = Gray500) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = NavyLight)
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedIndicatorColor = NavyPrimary,
-                                unfocusedIndicatorColor = NavyLight,
-                                focusedLabelColor = NavyPrimary,
-                                unfocusedLabelColor = Gray600,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = Gray900,
-                                unfocusedTextColor = Gray900,
-                                errorIndicatorColor = ErrorColor,
-                                errorLabelColor = ErrorColor
-                            ),
-                            shape = MaterialTheme.shapes.small,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-                        )
-                        Spacer(modifier = Modifier.height(space16))
+                        var topPrestataires by remember {
+                            mutableStateOf<List<Prestataire>>(
+                                emptyList()
+                            )
+                        }
+                        var isLoadingTop by remember { mutableStateOf(true) }
 
-                        if (isLoadingNextReservation) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
-                            Spacer(modifier = Modifier.height(space16))
-                        } else if (nextReservation != null) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = GreenLightest),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Column(modifier = Modifier.padding(space16)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "📅 Votre prochaine intervention",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = GreenPrimary
-                                        )
-                                        Text(
-                                            text = nextReservation!!.statut?.replace("_", " ") ?: "",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = when (nextReservation!!.statut) {
-                                                "ACCEPTEE" -> GreenPrimary
-                                                "EN_COURS" -> NavyPrimary
-                                                else -> Gray500
-                                            }
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(space8))
-                                    Text(
-                                        text = "${nextReservation!!.service?.nom ?: "Service"} avec ${nextReservation!!.prestataire?.nom ?: "prestataire"}",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = NavyPrimary
-                                    )
-                                    Text(
-                                        text = "📍 ${nextReservation!!.adresse ?: "Adresse non spécifiée"}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Gray600
-                                    )
-                                    Text(
-                                        text = "🕒 ${formatDate(nextReservation!!.dateHeure)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Gray600
-                                    )
-                                }
+                        LaunchedEffect(Unit) {
+                            isLoadingPrestataires = true
+                            val data = prestataireRepo.searchPrestataires(
+                                service = null,
+                                noteMin = null,
+                                zone = null
+                            )
+                            if (data != null) prestataires = data
+                            isLoadingPrestataires = false
+
+                            isLoadingNextReservation = true
+                            val reservations = reservationRepo.getReservationsByClient(clientId)
+                            if (reservations != null) {
+                                totalReservations = reservations.size
+                                val active = reservations.filter {
+                                    it.statut == "ACCEPTEE" || it.statut == "EN_COURS"
+                                }.sortedBy { it.dateHeure }
+                                nextReservation = active.firstOrNull()
                             }
-                            Spacer(modifier = Modifier.height(space16))
+                            isLoadingNextReservation = false
 
-                            if (isLoadingTop) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp), color = NavyPrimary)
-                                Spacer(modifier = Modifier.height(space16))
-                            } else if (topPrestataires.isNotEmpty()) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Text(
-                                        text = "⭐ Prestataires recommandés",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = Gray600,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(space8))
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(space8)) {
-                                        items(topPrestataires) { prestataire ->
-                                            CompactPrestataireCard(
-                                                prestataire = prestataire,
-                                                onClick = { onNavigateToBook(prestataire.id) }
-                                            )
-                                        }
+                            isLoadingTop = true
+                            val topData = prestataireRepo.searchPrestataires(
+                                service = null,
+                                noteMin = 4.0,
+                                zone = null
+                            )
+                            if (topData != null) {
+                                val minNote = BigDecimal.valueOf(4.0)
+                                topPrestataires = topData
+                                    .filter { it.moyenneNotes != null && it.moyenneNotes!! >= minNote }
+                                    .sortedByDescending { it.moyenneNotes }
+                                    .take(5)
+                            }
+                            isLoadingTop = false
+                        }
+
+                        val filteredPrestataires by remember {
+                            derivedStateOf {
+                                var list = prestataires
+                                if (selectedServiceFilter != null) {
+                                    list = list.filter {
+                                        it.competences?.contains(
+                                            selectedServiceFilter!!,
+                                            ignoreCase = true
+                                        ) == true
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(space16))
+                                if (searchQuery.isNotBlank()) {
+                                    list = list.filter {
+                                        it.nom.contains(searchQuery, ignoreCase = true) ||
+                                                (it.competences?.contains(
+                                                    searchQuery,
+                                                    ignoreCase = true
+                                                ) == true) ||
+                                                (it.zoneIntervention?.contains(
+                                                    searchQuery,
+                                                    ignoreCase = true
+                                                ) == true)
+                                    }
+                                }
+                                list
                             }
-                        } else {
-                            Text(
-                                text = "Aucune intervention à venir. Trouvez un prestataire !",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Gray500
-                            )
-                            Spacer(modifier = Modifier.height(space16))
                         }
 
-                        if (services.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = space24, vertical = space24)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
-                                "Filtres rapides",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Gray600,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(space8))
-                            Row(
-                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(space8)
-                            ) {
-                                services.take(5).forEach { service ->
-                                    FilterChip(
-                                        selected = selectedServiceFilter == service.nom,
-                                        onClick = {
-                                            selectedServiceFilter = if (selectedServiceFilter == service.nom) null else service.nom
-                                        },
-                                        label = { Text(service.nom) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = NavyPrimary,
-                                            selectedLabelColor = Color.White,
-                                            disabledSelectedContainerColor = NavyPrimary
-                                        )
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(space24))
-                        }
-
-                        if (isLoadingPrestataires) {
-                            CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
-                            Spacer(modifier = Modifier.height(space16))
-                        } else if (filteredPrestataires.isEmpty()) {
-                            Text(
-                                text = if (searchQuery.isBlank() && selectedServiceFilter == null)
-                                    "Aucun prestataire disponible"
-                                else
-                                    "Aucun prestataire ne correspond à vos critères",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Gray500
-                            )
-                            Spacer(modifier = Modifier.height(space16))
-                        } else {
-                            Text(
-                                text = "Prestataires disponibles (${filteredPrestataires.size})",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Gray600,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(space8))
-
-                            LazyColumn(
-                                modifier = Modifier.fillMaxWidth().height(350.dp),
-                                verticalArrangement = Arrangement.spacedBy(space8)
-                            ) {
-                                items(filteredPrestataires) { prestataire ->
-                                    PrestataireCard(
-                                        prestataire = prestataire,
-                                        onClick = {
-                                            selectedPrestataire.value = prestataire
-                                            showPrestataireDetail.value = true
-                                        }
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(space16))
-                        }
-                        Text("© 2026 Kolabor", style = MaterialTheme.typography.bodySmall, color = Gray500)
-                    }
-                }
-
-                1 -> {
-                    var searchQueryExplorer by remember { mutableStateOf("") }
-                    var filteredPrestatairesExplorer by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
-                    var isLoadingExplorer by remember { mutableStateOf(false) }
-                    var isGridView by remember { mutableStateOf(true) }
-                    var showFilters by remember { mutableStateOf(false) }
-                    var filterOptions by remember { mutableStateOf(FilterOptions()) }
-                    var sortOption by remember { mutableStateOf("Par défaut") }
-                    val sortOptions = listOf("Par défaut", "Note (croissante)", "Note (décroissante)", "Prix (croissant)", "Prix (décroissant)")
-                    var showSortDropdown by remember { mutableStateOf(false) }
-                    var selectedCategory by remember { mutableStateOf<String?>(null) }
-                    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
-                    var showSuggestions by remember { mutableStateOf(false) }
-                    var allPrestataires by remember { mutableStateOf<List<Prestataire>>(emptyList()) }
-
-                    LaunchedEffect(selectedCategory, searchQueryExplorer, filterOptions, sortOption) {
-                        isLoadingExplorer = true
-                        val data = prestataireRepo.searchPrestataires(
-                            service = selectedCategory,
-                            noteMin = if (filterOptions.noteMin > 0) filterOptions.noteMin.toDouble() else null,
-                            zone = null
-                        )
-                        if (data != null) {
-                            allPrestataires = data
-                            var filtered = data
-
-                            if (filterOptions.priceMin > 0 || filterOptions.priceMax < 3000.0) {
-                                filtered = filtered.filter {
-                                    val tarif = it.tarifHoraire?.toDouble() ?: 0.0
-                                    tarif >= filterOptions.priceMin && tarif <= filterOptions.priceMax
-                                }
-                            }
-
-                            if (searchQueryExplorer.isNotBlank()) {
-                                filtered = filtered.filter {
-                                    it.nom.contains(searchQueryExplorer, ignoreCase = true) ||
-                                            (it.competences?.contains(searchQueryExplorer, ignoreCase = true) == true) ||
-                                            (it.zoneIntervention?.contains(searchQueryExplorer, ignoreCase = true) == true)
-                                }
-                            }
-
-                            when (sortOption) {
-                                "Note (croissante)" -> filtered = filtered.sortedBy { it.moyenneNotes?.toDouble() ?: 0.0 }
-                                "Note (décroissante)" -> filtered = filtered.sortedByDescending { it.moyenneNotes?.toDouble() ?: 0.0 }
-                                "Prix (croissant)" -> filtered = filtered.sortedBy { it.tarifHoraire?.toDouble() ?: 0.0 }
-                                "Prix (décroissant)" -> filtered = filtered.sortedByDescending { it.tarifHoraire?.toDouble() ?: 0.0 }
-                                else -> {}
-                            }
-
-                            filteredPrestatairesExplorer = filtered
-                        } else {
-                            allPrestataires = emptyList()
-                            filteredPrestatairesExplorer = emptyList()
-                        }
-                        isLoadingExplorer = false
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = space24, vertical = space24)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text(
-                            text = "Explorer",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = NavyPrimary
-                        )
-                        Spacer(modifier = Modifier.height(space8))
-                        Text(
-                            text = "Trouvez le prestataire idéal",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Gray500
-                        )
-                        Spacer(modifier = Modifier.height(space16))
-
-                        // ─── Grille de catégories ───
-                        if (services.isNotEmpty()) {
-                            Text(
-                                text = "Explorez par catégorie",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                text = "Bonjour, $userName !",
+                                style = MaterialTheme.typography.headlineSmall,
                                 color = NavyPrimary
                             )
-                            Spacer(modifier = Modifier.height(space4))
                             Text(
-                                text = "Des centaines de services à domicile, partout en Haïti.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Gray500
+                                text = "Trouvez et gérez vos services en un clin d'œil.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = NavyPrimary
+                            )
+                            Spacer(modifier = Modifier.height(space24))
+
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                label = { Text("Rechercher un prestataire") },
+                                placeholder = { Text("Nom, compétence, zone...", color = Gray500) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = NavyLight
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedIndicatorColor = NavyPrimary,
+                                    unfocusedIndicatorColor = NavyLight,
+                                    focusedLabelColor = NavyPrimary,
+                                    unfocusedLabelColor = Gray600,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedTextColor = Gray900,
+                                    unfocusedTextColor = Gray900,
+                                    errorIndicatorColor = ErrorColor,
+                                    errorLabelColor = ErrorColor
+                                ),
+                                shape = MaterialTheme.shapes.small,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
                             )
                             Spacer(modifier = Modifier.height(space16))
 
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(3),
-                                horizontalArrangement = Arrangement.spacedBy(space8),
-                                verticalArrangement = Arrangement.spacedBy(space8),
-                                modifier = Modifier.height(220.dp)
-                            ) {
-                                items(services.take(9)) { service ->
-                                    CategoryTile(
-                                        service = service,
-                                        isSelected = selectedCategory == service.nom,
-                                        onClick = {
-                                            selectedCategory = if (selectedCategory == service.nom) null else service.nom
-                                        }
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(space24))
-                        }
-
-                        OutlinedTextField(
-                            value = searchQueryExplorer,
-                            onValueChange = { query ->
-                                searchQueryExplorer = query
-                                if (query.length >= 2 && allPrestataires.isNotEmpty()) {
-                                    val allNames = allPrestataires.map { it.nom }
-                                    val allCompetences = allPrestataires.flatMap {
-                                        it.competences?.split(",")?.map { c -> c.trim() } ?: emptyList()
-                                    }
-                                    val combined = (allNames + allCompetences).distinct()
-                                    suggestions = combined.filter { it.contains(query, ignoreCase = true) }.take(5)
-                                    showSuggestions = suggestions.isNotEmpty()
-                                } else {
-                                    showSuggestions = false
-                                }
-                            },
-                            label = { Text("Rechercher un prestataire") },
-                            placeholder = { Text("Nom, compétence...", color = Gray500) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = NavyLight)
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedIndicatorColor = NavyPrimary,
-                                unfocusedIndicatorColor = NavyLight,
-                                focusedLabelColor = NavyPrimary,
-                                unfocusedLabelColor = Gray600,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = Gray900,
-                                unfocusedTextColor = Gray900,
-                                errorIndicatorColor = ErrorColor,
-                                errorLabelColor = ErrorColor
-                            ),
-                            shape = MaterialTheme.shapes.small,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-                        )
-                        Spacer(modifier = Modifier.height(space16))
-
-                        if (showSuggestions) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp).padding(vertical = space4),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                LazyColumn(
+                            if (isLoadingNextReservation) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    color = NavyPrimary
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            } else if (nextReservation != null) {
+                                Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    contentPadding = PaddingValues(horizontal = space8)
+                                    colors = CardDefaults.cardColors(containerColor = GreenLightest),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    shape = MaterialTheme.shapes.small
                                 ) {
-                                    items(suggestions) { suggestion ->
-                                        TextButton(
-                                            onClick = {
-                                                searchQueryExplorer = suggestion
-                                                showSuggestions = false
-                                            },
-                                            modifier = Modifier.fillMaxWidth()
+                                    Column(modifier = Modifier.padding(space16)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Text(
-                                                text = suggestion,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Gray700,
-                                                modifier = Modifier.fillMaxWidth()
+                                                text = "📅 Votre prochaine intervention",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = GreenPrimary
+                                            )
+                                            Text(
+                                                text = nextReservation!!.statut?.replace("_", " ")
+                                                    ?: "",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = when (nextReservation!!.statut) {
+                                                    "ACCEPTEE" -> GreenPrimary
+                                                    "EN_COURS" -> NavyPrimary
+                                                    else -> Gray500
+                                                }
                                             )
                                         }
-                                        HorizontalDivider(color = Gray100)
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(space8))
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Tri", style = MaterialTheme.typography.labelLarge, color = Gray600)
-                            Box {
-                                TextButton(onClick = { showSortDropdown = !showSortDropdown }) {
-                                    Text(text = sortOption, color = NavyPrimary)
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = NavyPrimary)
-                                }
-                                DropdownMenu(
-                                    expanded = showSortDropdown,
-                                    onDismissRequest = { showSortDropdown = false }
-                                ) {
-                                    sortOptions.forEach { option ->
-                                        DropdownMenuItem(
-                                            text = { Text(option) },
-                                            onClick = {
-                                                sortOption = option
-                                                showSortDropdown = false
-                                            }
+                                        Spacer(modifier = Modifier.height(space8))
+                                        Text(
+                                            text = "${nextReservation!!.service?.nom ?: "Service"} avec ${nextReservation!!.prestataire?.nom ?: "prestataire"}",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = NavyPrimary
+                                        )
+                                        Text(
+                                            text = "📍 ${nextReservation!!.adresse ?: "Adresse non spécifiée"}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Gray600
+                                        )
+                                        Text(
+                                            text = "🕒 ${formatDate(nextReservation!!.dateHeure)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Gray600
                                         )
                                     }
                                 }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(space8))
+                                Spacer(modifier = Modifier.height(space16))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(onClick = { showFilters = true }) {
-                                Icon(
-                                    Icons.Default.FilterList,
-                                    contentDescription = "Filtres",
-                                    tint = NavyPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(space4))
-                                Text("Filtres", color = NavyPrimary)
-                            }
-
-                            Row {
-                                IconButton(onClick = { isGridView = true }) {
-                                    Icon(
-                                        imageVector = if (isGridView) Icons.Filled.GridView else Icons.Outlined.GridView,
-                                        contentDescription = "Vue grille",
-                                        tint = if (isGridView) NavyPrimary else Gray400
+                                if (isLoadingTop) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(32.dp),
+                                        color = NavyPrimary
                                     )
-                                }
-                                IconButton(onClick = { isGridView = false }) {
-                                    Icon(
-                                        imageVector = if (isGridView) Icons.Outlined.List else Icons.Filled.List,
-                                        contentDescription = "Vue liste",
-                                        tint = if (isGridView) Gray400 else NavyPrimary
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(space8))
-
-                        if (isLoadingExplorer) {
-                            CircularProgressIndicator(modifier = Modifier.size(40.dp), color = NavyPrimary)
-                            Spacer(modifier = Modifier.height(space16))
-                        } else if (filteredPrestatairesExplorer.isEmpty()) {
-                            Text(
-                                text = "Aucun prestataire trouvé",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = Gray500
-                            )
-                            Spacer(modifier = Modifier.height(space16))
-                        } else {
-                            Text(
-                                text = "Prestataires disponibles (${filteredPrestatairesExplorer.size})",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Gray600,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(space8))
-
-                            if (isGridView) {
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
-                                    horizontalArrangement = Arrangement.spacedBy(space8),
-                                    verticalArrangement = Arrangement.spacedBy(space8),
-                                    modifier = Modifier.fillMaxWidth().height(350.dp)
-                                ) {
-                                    items(filteredPrestatairesExplorer) { prestataire ->
-                                        ExplorerPrestataireCard(
-                                            prestataire = prestataire,
-                                            onClick = {
-                                                selectedPrestataire.value = prestataire
-                                                showPrestataireDetail.value = true
-                                            }
+                                    Spacer(modifier = Modifier.height(space16))
+                                } else if (topPrestataires.isNotEmpty()) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            text = "⭐ Prestataires recommandés",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Gray600,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
+                                        Spacer(modifier = Modifier.height(space8))
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(space8)) {
+                                            items(topPrestataires) { prestataire ->
+                                                CompactPrestataireCard(
+                                                    prestataire = prestataire,
+                                                    onClick = { onNavigateToBook(prestataire.id) }
+                                                )
+                                            }
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(space16))
                                 }
                             } else {
+                                Text(
+                                    text = "Aucune intervention à venir. Trouvez un prestataire !",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Gray500
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            }
+
+                            if (services.isNotEmpty()) {
+                                Text(
+                                    "Filtres rapides",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Gray600,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(space8))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(space8)
+                                ) {
+                                    services.take(5).forEach { service ->
+                                        FilterChip(
+                                            selected = selectedServiceFilter == service.nom,
+                                            onClick = {
+                                                selectedServiceFilter =
+                                                    if (selectedServiceFilter == service.nom) null else service.nom
+                                            },
+                                            label = { Text(service.nom) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = NavyPrimary,
+                                                selectedLabelColor = Color.White,
+                                                disabledSelectedContainerColor = NavyPrimary
+                                            )
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(space24))
+                            }
+
+                            if (isLoadingPrestataires) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(40.dp),
+                                    color = NavyPrimary
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            } else if (filteredPrestataires.isEmpty()) {
+                                Text(
+                                    text = if (searchQuery.isBlank() && selectedServiceFilter == null)
+                                        "Aucun prestataire disponible"
+                                    else
+                                        "Aucun prestataire ne correspond à vos critères",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Gray500
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            } else {
+                                Text(
+                                    text = "Prestataires disponibles (${filteredPrestataires.size})",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Gray600,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(space8))
+
                                 LazyColumn(
                                     modifier = Modifier.fillMaxWidth().height(350.dp),
                                     verticalArrangement = Arrangement.spacedBy(space8)
                                 ) {
-                                    items(filteredPrestatairesExplorer) { prestataire ->
-                                        ExplorerPrestataireListCard(
+                                    items(filteredPrestataires) { prestataire ->
+                                        PrestataireCard(
                                             prestataire = prestataire,
                                             onClick = {
                                                 selectedPrestataire.value = prestataire
@@ -761,46 +569,483 @@ fun ClientDashboard(
                                         )
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(space16))
                             }
-                            Spacer(modifier = Modifier.height(space16))
+                            Text(
+                                "© 2026 Kolabor",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Gray500
+                            )
                         }
                     }
 
-                    if (showFilters) {
-                        FilterBottomSheet(
-                            currentFilters = filterOptions,
-                            onApplyFilters = { newFilters ->
-                                filterOptions = newFilters
-                                showFilters = false
+                    1 -> {
+                        var searchQueryExplorer by remember { mutableStateOf("") }
+                        var filteredPrestatairesExplorer by remember {
+                            mutableStateOf<List<Prestataire>>(
+                                emptyList()
+                            )
+                        }
+                        var isLoadingExplorer by remember { mutableStateOf(false) }
+                        var isGridView by remember { mutableStateOf(true) }
+                        var showFilters by remember { mutableStateOf(false) }
+                        var filterOptions by remember { mutableStateOf(FilterOptions()) }
+                        var sortOption by remember { mutableStateOf("Par défaut") }
+                        val sortOptions = listOf(
+                            "Par défaut",
+                            "Note (croissante)",
+                            "Note (décroissante)",
+                            "Prix (croissant)",
+                            "Prix (décroissant)"
+                        )
+                        var showSortDropdown by remember { mutableStateOf(false) }
+                        var selectedCategory by remember { mutableStateOf<String?>(null) }
+                        var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+                        var showSuggestions by remember { mutableStateOf(false) }
+                        var allPrestataires by remember {
+                            mutableStateOf<List<Prestataire>>(
+                                emptyList()
+                            )
+                        }
+
+                        LaunchedEffect(serviceFilterForExplorer) {
+                            if (serviceFilterForExplorer != null) {
+                                selectedCategory = serviceFilterForExplorer
+                                searchQueryExplorer = serviceFilterForExplorer ?: ""
+                                serviceFilterForExplorer = null
+                            }
+                        }
+
+                        LaunchedEffect(
+                            selectedCategory,
+                            searchQueryExplorer,
+                            filterOptions,
+                            sortOption
+                        ) {
+                            isLoadingExplorer = true
+                            val data = prestataireRepo.searchPrestataires(
+                                service = selectedCategory,
+                                noteMin = if (filterOptions.noteMin > 0) filterOptions.noteMin.toDouble() else null,
+                                zone = null
+                            )
+                            if (data != null) {
+                                allPrestataires = data
+                                var filtered = data
+
+                                if (filterOptions.priceMin > 0 || filterOptions.priceMax < 3000.0) {
+                                    filtered = filtered.filter {
+                                        val tarif = it.tarifHoraire?.toDouble() ?: 0.0
+                                        tarif >= filterOptions.priceMin && tarif <= filterOptions.priceMax
+                                    }
+                                }
+
+                                if (searchQueryExplorer.isNotBlank()) {
+                                    filtered = filtered.filter {
+                                        it.nom.contains(searchQueryExplorer, ignoreCase = true) ||
+                                                (it.competences?.contains(
+                                                    searchQueryExplorer,
+                                                    ignoreCase = true
+                                                ) == true) ||
+                                                (it.zoneIntervention?.contains(
+                                                    searchQueryExplorer,
+                                                    ignoreCase = true
+                                                ) == true)
+                                    }
+                                }
+
+                                when (sortOption) {
+                                    "Note (croissante)" -> filtered =
+                                        filtered.sortedBy { it.moyenneNotes?.toDouble() ?: 0.0 }
+
+                                    "Note (décroissante)" -> filtered =
+                                        filtered.sortedByDescending {
+                                            it.moyenneNotes?.toDouble() ?: 0.0
+                                        }
+
+                                    "Prix (croissant)" -> filtered =
+                                        filtered.sortedBy { it.tarifHoraire?.toDouble() ?: 0.0 }
+
+                                    "Prix (décroissant)" -> filtered = filtered.sortedByDescending {
+                                        it.tarifHoraire?.toDouble() ?: 0.0
+                                    }
+
+                                    else -> {}
+                                }
+
+                                filteredPrestatairesExplorer = filtered
+                            } else {
+                                allPrestataires = emptyList()
+                                filteredPrestatairesExplorer = emptyList()
+                            }
+                            isLoadingExplorer = false
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = space24, vertical = space24)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "Explorer",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = NavyPrimary
+                            )
+                            Spacer(modifier = Modifier.height(space8))
+                            Text(
+                                text = "Trouvez le prestataire idéal",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Gray500
+                            )
+                            Spacer(modifier = Modifier.height(space16))
+
+                            // ─── Grille de catégories uniques ───
+                            if (services.isNotEmpty()) {
+                                // Extraire les catégories uniques
+                                val categories = remember(services) {
+                                    services.mapNotNull { it.categorie }
+                                        .distinct()
+                                        .sorted()
+                                }
+
+                                if (categories.isNotEmpty()) {
+                                    Text(
+                                        text = "Explorez par catégorie",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = NavyPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(space4))
+                                    Text(
+                                        text = "Des centaines de services à domicile, partout en Haïti.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Gray500
+                                    )
+                                    Spacer(modifier = Modifier.height(space16))
+
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(3),
+                                        horizontalArrangement = Arrangement.spacedBy(space8),
+                                        verticalArrangement = Arrangement.spacedBy(space8),
+                                        modifier = Modifier.height(220.dp)
+                                    ) {
+                                        items(categories) { category ->
+                                            CategoryTile(
+                                                service = Service(
+                                                    id = 0,
+                                                    nom = category,          // on met le nom de la catégorie
+                                                    description = null,
+                                                    categorie = category
+                                                ),
+                                                isSelected = selectedCategory == category,
+                                                onClick = {
+                                                    selectedCategory = if (selectedCategory == category) null else category
+                                                }
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(space24))
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = searchQueryExplorer,
+                                onValueChange = { query ->
+                                    searchQueryExplorer = query
+                                    if (query.length >= 2 && allPrestataires.isNotEmpty()) {
+                                        val allNames = allPrestataires.map { it.nom }
+                                        val allCompetences = allPrestataires.flatMap {
+                                            it.competences?.split(",")?.map { c -> c.trim() }
+                                                ?: emptyList()
+                                        }
+                                        val combined = (allNames + allCompetences).distinct()
+                                        suggestions = combined.filter {
+                                            it.contains(
+                                                query,
+                                                ignoreCase = true
+                                            )
+                                        }.take(5)
+                                        showSuggestions = suggestions.isNotEmpty()
+                                    } else {
+                                        showSuggestions = false
+                                    }
+                                },
+                                label = { Text("Rechercher un prestataire") },
+                                placeholder = { Text("Nom, compétence...", color = Gray500) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = NavyLight
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedIndicatorColor = NavyPrimary,
+                                    unfocusedIndicatorColor = NavyLight,
+                                    focusedLabelColor = NavyPrimary,
+                                    unfocusedLabelColor = Gray600,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedTextColor = Gray900,
+                                    unfocusedTextColor = Gray900,
+                                    errorIndicatorColor = ErrorColor,
+                                    errorLabelColor = ErrorColor
+                                ),
+                                shape = MaterialTheme.shapes.small,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                            )
+                            Spacer(modifier = Modifier.height(space16))
+
+                            if (showSuggestions) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp)
+                                        .padding(vertical = space4),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = space8)
+                                    ) {
+                                        items(suggestions) { suggestion ->
+                                            TextButton(
+                                                onClick = {
+                                                    searchQueryExplorer = suggestion
+                                                    showSuggestions = false
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = suggestion,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Gray700,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                            HorizontalDivider(color = Gray100)
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(space8))
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "Tri",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Gray600
+                                )
+                                Box {
+                                    TextButton(onClick = { showSortDropdown = !showSortDropdown }) {
+                                        Text(text = sortOption, color = NavyPrimary)
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = null,
+                                            tint = NavyPrimary
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showSortDropdown,
+                                        onDismissRequest = { showSortDropdown = false }
+                                    ) {
+                                        sortOptions.forEach { option ->
+                                            DropdownMenuItem(
+                                                text = { Text(option) },
+                                                onClick = {
+                                                    sortOption = option
+                                                    showSortDropdown = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space8))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { showFilters = true }) {
+                                    Icon(
+                                        Icons.Default.FilterList,
+                                        contentDescription = "Filtres",
+                                        tint = NavyPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(space4))
+                                    Text("Filtres", color = NavyPrimary)
+                                }
+
+                                Row {
+                                    IconButton(onClick = { isGridView = true }) {
+                                        Icon(
+                                            imageVector = if (isGridView) Icons.Filled.GridView else Icons.Outlined.GridView,
+                                            contentDescription = "Vue grille",
+                                            tint = if (isGridView) NavyPrimary else Gray400
+                                        )
+                                    }
+                                    IconButton(onClick = { isGridView = false }) {
+                                        Icon(
+                                            imageVector = if (isGridView) Icons.Outlined.List else Icons.Filled.List,
+                                            contentDescription = "Vue liste",
+                                            tint = if (isGridView) Gray400 else NavyPrimary
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(space8))
+
+                            if (isLoadingExplorer) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(40.dp),
+                                    color = NavyPrimary
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            } else if (filteredPrestatairesExplorer.isEmpty()) {
+                                Text(
+                                    text = "Aucun prestataire trouvé",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Gray500
+                                )
+                                Spacer(modifier = Modifier.height(space16))
+                            } else {
+                                Text(
+                                    text = "Prestataires disponibles (${filteredPrestatairesExplorer.size})",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Gray600,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(space8))
+
+                                if (isGridView) {
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(2),
+                                        horizontalArrangement = Arrangement.spacedBy(space8),
+                                        verticalArrangement = Arrangement.spacedBy(space8),
+                                        modifier = Modifier.fillMaxWidth().height(350.dp)
+                                    ) {
+                                        items(filteredPrestatairesExplorer) { prestataire ->
+                                            ExplorerPrestataireCard(
+                                                prestataire = prestataire,
+                                                onClick = {
+                                                    selectedPrestataire.value = prestataire
+                                                    showPrestataireDetail.value = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxWidth().height(350.dp),
+                                        verticalArrangement = Arrangement.spacedBy(space8)
+                                    ) {
+                                        items(filteredPrestatairesExplorer) { prestataire ->
+                                            ExplorerPrestataireListCard(
+                                                prestataire = prestataire,
+                                                onClick = {
+                                                    selectedPrestataire.value = prestataire
+                                                    showPrestataireDetail.value = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(space16))
+                            }
+                        }
+
+                        if (showFilters) {
+                            FilterBottomSheet(
+                                currentFilters = filterOptions,
+                                onApplyFilters = { newFilters ->
+                                    filterOptions = newFilters
+                                    showFilters = false
+                                },
+                                onDismiss = { showFilters = false }
+                            )
+                        }
+                    }
+
+                    2 -> {
+                        if (selectedReservation != null) {
+                            ReservationDetailScreen(
+                                reservation = selectedReservation!!,
+                                clientId = clientId,
+                                onBack = { selectedReservation = null },
+                                onCancel = { selectedReservation = null },
+                                onReview = { selectedReservation = null },
+                                onPay = { reservation ->
+                                    onNavigateToPayment(reservation)
+                                }
+                            )
+                        } else {
+                            ReservationsScreen(
+                                onBack = { selectedTab = 0 },
+                                clientId = clientId,
+                                onReservationClick = { reservation ->
+                                    selectedReservation = reservation
+                                }
+                            )
+                        }
+                    }
+
+                    3 -> {
+                        ProfileScreen(onLogout = onLogout)
+                    }
+                }
+            }
+
+            // ─── 3. ALERTDIALOG POUR LA RÉSERVATION ───
+            if (bookingPromptService != null) {
+                AlertDialog(
+                    onDismissRequest = { bookingPromptService = null },
+                    title = { Text("Réserver ce service") },
+                    text = {
+                        Column {
+                            Text("Vous souhaitez réserver le service :")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = bookingPromptService!!.nom,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = NavyPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Pour cela, vous devez d'abord trouver un prestataire qui propose ce service.")
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val service = bookingPromptService
+                                bookingPromptService = null
+                                if (service != null) {
+                                    serviceFilterForExplorer = service.nom
+                                    selectedServiceDetail = null
+                                    showServiceList = false
+                                    selectedTab = 1
+                                    onTabChanged(1)
+                                }
                             },
-                            onDismiss = { showFilters = false }
-                        )
+                            colors = ButtonDefaults.buttonColors(containerColor = NavyPrimary)
+                        ) {
+                            Text("Trouver un professionnel")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { bookingPromptService = null }) {
+                            Text("Annuler")
+                        }
                     }
-                }
-
-                2 -> {
-                    if (selectedReservation != null) {
-                        ReservationDetailScreen(
-                            reservation = selectedReservation!!,
-                            clientId = clientId,
-                            onBack = { selectedReservation = null },
-                            onCancel = { selectedReservation = null },
-                            onReview = { selectedReservation = null }
-                        )
-                    } else {
-                        ReservationsScreen(
-                            onBack = { selectedTab = 0 },
-                            clientId = clientId,
-                            onReservationClick = { reservation -> selectedReservation = reservation }
-                        )
-                    }
-                }
-
-                3 -> {
-                    ProfileScreen(
-                        onLogout = onLogout
-                    )
-                }
+                )
             }
         }
     }

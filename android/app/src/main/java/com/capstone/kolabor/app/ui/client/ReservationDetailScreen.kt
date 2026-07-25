@@ -33,6 +33,7 @@ fun ReservationDetailScreen(
     onBack: () -> Unit,
     onCancel: () -> Unit,
     onReview: () -> Unit,
+    onPay: (Reservation) -> Unit,   // ✅ nouveau callback pour le paiement
     clientId: Long,
 ) {
     val context = LocalContext.current
@@ -42,6 +43,7 @@ fun ReservationDetailScreen(
 
     val isCancellable = reservation.statut == "EN_ATTENTE" || reservation.statut == "ACCEPTEE"
     val isReviewable = reservation.statut == "TERMINEE"
+    val isPayable = reservation.statut == "TERMINEE"   // ✅ Paiement disponible si terminée
     val statutColor = when (reservation.statut) {
         "TERMINEE" -> GreenPrimary
         "ANNULEE" -> ErrorColor
@@ -115,7 +117,6 @@ fun ReservationDetailScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Dans ReservationDetailScreen.kt (section "Carte prestataire")
                     Box(
                         modifier = Modifier
                             .size(64.dp)
@@ -236,10 +237,31 @@ fun ReservationDetailScreen(
                     }
                 }
 
+                // ✅ BOUTON PAYER (si réservation terminée)
+                if (isPayable) {
+                    Button(
+                        onClick = {
+                            onPay(reservation)   // ✅ Navigue vers l'écran de paiement
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Payment, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Payer maintenant")
+                    }
+                }
+
                 if (isReviewable) {
                     Button(
                         onClick = {
-                            showReviewSheet = true  // ✅ Ouvre le sheet
+                            showReviewSheet = true
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -274,11 +296,12 @@ fun ReservationDetailScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+
         // Bottom Sheet pour l'avis
         if (showReviewSheet) {
             ReviewBottomSheet(
                 reservationId = reservation.id,
-                clientId = clientId, // Il faut passer clientId en paramètre à ReservationDetailScreen
+                clientId = clientId,
                 prestataireNom = reservation.prestataire?.nom ?: "prestataire",
                 onDismiss = {
                     showReviewSheet = false

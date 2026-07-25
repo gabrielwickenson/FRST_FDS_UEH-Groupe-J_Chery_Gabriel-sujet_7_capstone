@@ -204,6 +204,10 @@ fun KolaborApp() {
                                                 showReservations.value = true
                                             }
                                         },
+                                        onNavigateToPayment = { reservation ->
+                                            selectedReservationForPayment.value = reservation
+                                            showPayment.value = true
+                                        },
                                         userName = userName.value ?: "Client"
                                     )
                                 }
@@ -305,6 +309,11 @@ fun KolaborApp() {
                         },
                         onReview = {
                             Toast.makeText(context, "Ouvrir le formulaire d'avis", Toast.LENGTH_SHORT).show()
+                        },
+                        onPay = { reservation ->   // ✅ Ajout du callback
+                            selectedReservationForPayment.value = reservation
+                            showPayment.value = true
+                            showReservationDetail.value = false  // Ferme le détail
                         }
                     )
                 }

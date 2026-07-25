@@ -40,6 +40,10 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.draw.clip
+import com.capstone.kolabor.app.data.model.Service
+import com.capstone.kolabor.app.ui.client.ServiceDetailScreen
+import com.capstone.kolabor.app.ui.client.ServiceListScreen
+import com.capstone.kolabor.app.ui.help.HelpScreen
 import kotlinx.coroutines.flow.collectLatest
 import com.capstone.kolabor.app.utils.LocalNotificationManager
 import java.text.SimpleDateFormat
@@ -77,6 +81,11 @@ fun PrestataireDashboard(onLogout: () -> Unit,
     val notificationManager = LocalNotificationManager
     val notifications by notificationManager.notifications.collectAsState()
     var showNotificationsSheet by remember { mutableStateOf(false) }
+    var showServiceList by remember { mutableStateOf(false) }
+    var selectedServiceDetail by remember { mutableStateOf<Service?>(null) }
+    var filterForExplorer by remember { mutableStateOf<String?>(null) } // 👈 AJOUT
+    var bookingPromptService by remember { mutableStateOf<Service?>(null) } // 👈 AJOUT
+    var showHelp by remember { mutableStateOf(false) }
 
     suspend fun loadDashboardData() {
         try {
@@ -162,16 +171,13 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                 title = { Text("Kolabor Pro", style = MaterialTheme.typography.titleLarge, color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
-                    // ✅ NOUVEAU : Icône de notifications
+                    // Icône notifications existante
                     IconButton(onClick = { showNotificationsSheet = true }) {
                         BadgedBox(
                             badge = {
                                 val unreadCount = notifications.count { !it.isRead }
                                 if (unreadCount > 0) {
-                                    Badge(
-                                        containerColor = ErrorColor,
-                                        contentColor = Color.White
-                                    ) {
+                                    Badge(containerColor = ErrorColor, contentColor = Color.White) {
                                         Text(
                                             text = if (unreadCount > 99) "99+" else unreadCount.toString(),
                                             style = MaterialTheme.typography.labelSmall
@@ -180,14 +186,63 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                                 }
                             }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "Notifications",
-                                tint = Color.White
-                            )
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
                         }
                     }
-                    // Bouton de déconnexion existant
+                    // ✅ NOUVEAU : Menu déroulant
+                    var showMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(Color.White)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Services", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                showServiceList = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Notifications", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                showNotificationsSheet = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Aide", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                showHelp = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Help, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Confidentialité", color = NavyPrimary) },
+                            onClick = {
+                                showMenu = false
+                                Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = NavyPrimary) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Déconnexion", color = ErrorColor) },
+                            onClick = {
+                                showMenu = false
+                                onLogout()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null, tint = ErrorColor) }
+                        )
+                    }
+                    // Bouton déconnexion existant (vous pouvez le garder ou le retirer, car déjà dans le menu)
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "Déconnexion", tint = Color.White)
                     }
@@ -203,7 +258,12 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                         icon = { Icon(icons[index], contentDescription = title, modifier = Modifier.size(24.dp)) },
                         label = { Text(title, style = MaterialTheme.typography.labelMedium) },
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            // ✅ Fermer les overlays avant de changer d'onglet
+                            showServiceList = false
+                            selectedServiceDetail = null
+                            selectedTab = index
+                        },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NavyPrimary,
                             selectedTextColor = NavyPrimary,
@@ -216,377 +276,382 @@ fun PrestataireDashboard(onLogout: () -> Unit,
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            when (selectedTab) {
-                0 -> {
-                    SwipeRefresh(
-                        state = rememberSwipeRefreshState(isRefreshing),
-                        onRefresh = {
-                            isRefreshing = true
-                            coroutineScope.launch {
-                                try {
-                                    loadDashboardData()
-                                } finally {
-                                    isRefreshing = false
+            // ✅ Overlays priorisés
+            if (selectedServiceDetail != null) {
+                ServiceDetailScreen(
+                    service = selectedServiceDetail!!,
+                    onBack = {
+                        selectedServiceDetail = null
+                        showServiceList = true
+                    },
+                    onReserveService = { service ->
+                        // ✅ Afficher le dialogue de réservation
+                        bookingPromptService = service
+                    }
+                )
+            } else if (showServiceList) {
+                ServiceListScreen(
+                    onBack = { showServiceList = false },
+                    onServiceClick = { service ->
+                        selectedServiceDetail = service
+                        showServiceList = false
+                    }
+                )
+            } else if (showHelp) {
+                HelpScreen(
+                    onBack = { showHelp = false }
+                )
+            }else {
+
+                when (selectedTab) {
+                    0 -> {
+                        SwipeRefresh(
+                            state = rememberSwipeRefreshState(isRefreshing),
+                            onRefresh = {
+                                isRefreshing = true
+                                coroutineScope.launch {
+                                    try {
+                                        loadDashboardData()
+                                    } finally {
+                                        isRefreshing = false
+                                    }
                                 }
                             }
-                        }
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            item {
-                                Text(
-                                    text = "Bonjour, $userName !",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = NavyPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Voici un résumé de votre activité.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Gray500
-                                )
-                                if (!errorMessage.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(errorMessage ?: "", color = ErrorColor, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-
-                            item {
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Disponibilité", style = MaterialTheme.typography.titleMedium, color = NavyPrimary, fontWeight = FontWeight.SemiBold)
-                                            Text(
-                                                text = if (isAvailable) "Vous êtes disponible" else "Vous êtes indisponible",
-                                                color = if (isAvailable) GreenPrimary else ErrorColor,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                        }
-                                        Switch(
-                                            checked = isAvailable,
-                                            onCheckedChange = { newStatus ->
-                                                val id = prestataireId
-                                                if (id == null || id == 0L) {
-                                                    Toast.makeText(context, "Prestataire non identifié", Toast.LENGTH_SHORT).show()
-                                                    return@Switch
-                                                }
-                                                isUpdatingAvailability = true
-                                                coroutineScope.launch {
-                                                    try {
-                                                        val success = prestataireRepo.updateAvailability(id, newStatus)
-                                                        if (success) {
-                                                            isAvailable = newStatus
-                                                            Toast.makeText(
-                                                                context,
-                                                                if (newStatus) "Vous êtes maintenant disponible" else "Vous êtes maintenant indisponible",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                        } else {
-                                                            Toast.makeText(context, "Erreur lors de la mise à jour", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        Toast.makeText(context, "Erreur réseau", Toast.LENGTH_SHORT).show()
-                                                    } finally {
-                                                        isUpdatingAvailability = false
-                                                    }
-                                                }
-                                            },
-                                            enabled = !isUpdatingAvailability,
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = NavyPrimary,
-                                                checkedTrackColor = NavyPrimary.copy(alpha = 0.5f),
-                                                uncheckedThumbColor = Gray400,
-                                                uncheckedTrackColor = Gray300
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            item {
-                                if (isLoadingRevenue) {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(color = NavyPrimary)
-                                    }
-                                } else if (weeklyRevenue.isNotEmpty()) {
-                                    RevenueChart(
-                                        data = weeklyRevenue.associate { it.day to it.amount },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    horizontal = 20.dp,
+                                    vertical = 16.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                item {
                                     Text(
-                                        text = "Aucune donnée de revenus disponible",
+                                        text = "Bonjour, $userName !",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = NavyPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Voici un résumé de votre activité.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Gray500
                                     )
-                                }
-                            }
-
-                            item {
-                                if (isLoading) {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(color = NavyPrimary)
-                                    }
-                                } else {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        StatCard(label = "Total", value = totalCount.toString(), icon = Icons.Default.ListAlt, color = NavyPrimary, modifier = Modifier.weight(1f))
-                                        StatCard(label = "En attente", value = pendingCount.toString(), icon = Icons.Default.Pending, color = Color(0xFFFFB800), modifier = Modifier.weight(1f))
-                                        StatCard(label = "Terminées", value = completedCount.toString(), icon = Icons.Default.CheckCircle, color = GreenPrimary, modifier = Modifier.weight(1f))
+                                    if (!errorMessage.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            errorMessage ?: "",
+                                            color = ErrorColor,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
                                     }
                                 }
-                            }
 
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "📋 Dernières demandes",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = NavyPrimary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    TextButton(onClick = { selectedTab = 1 }) { Text("Voir tout", color = NavyPrimary) }
-                                }
-                            }
-
-                            if (reservations.isEmpty()) {
                                 item {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                        contentAlignment = Alignment.Center
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                        shape = RoundedCornerShape(16.dp)
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(Icons.Default.Inbox, contentDescription = null, tint = Gray300, modifier = Modifier.size(48.dp))
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text("Aucune réservation pour le moment", color = Gray500)
-                                        }
-                                    }
-                                }
-                            } else {
-                                items(reservations.take(5)) { reservation ->
-                                    PrestataireReservationCard(
-                                        reservation = reservation,
-                                        prestataireId = prestataireId ?: 0L,
-                                        onAction = {
-                                            coroutineScope.launch { loadDashboardData() }
-                                        },
-                                        onCardClick = {
-                                            selectedReservation = reservation
-                                            showDetailSheet = true
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                1 -> {
-                    SwipeRefresh(
-                        state = rememberSwipeRefreshState(isRefreshing),
-                        onRefresh = {
-                            isRefreshing = true
-                            coroutineScope.launch {
-                                try {
-                                    loadDashboardData()
-                                } finally {
-                                    isRefreshing = false
-                                }
-                            }
-                        }
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                Text("Mes réservations", style = MaterialTheme.typography.headlineSmall, color = NavyPrimary, fontWeight = FontWeight.Bold)
-                                Text("${filteredReservations.size} réservation(s)", style = MaterialTheme.typography.bodyMedium, color = Gray500)
-                            }
-
-                            if (reservations.isNotEmpty()) {
-                                item {
-                                    Row(
-                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        listOf("Toutes", "EN_ATTENTE", "ACCEPTEE", "EN_COURS", "TERMINEE", "ANNULEE").forEach { statut ->
-                                            FilterChip(
-                                                selected = selectedFilter == statut,
-                                                onClick = { selectedFilter = statut },
-                                                label = {
-                                                    Text(
-                                                        text = when (statut) {
-                                                            "Toutes" -> "Toutes"
-                                                            "EN_ATTENTE" -> "En attente"
-                                                            "ACCEPTEE" -> "Acceptées"
-                                                            "EN_COURS" -> "En cours"
-                                                            "TERMINEE" -> "Terminées"
-                                                            else -> "Annulées"
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    "Disponibilité",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = NavyPrimary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = if (isAvailable) "Vous êtes disponible" else "Vous êtes indisponible",
+                                                    color = if (isAvailable) GreenPrimary else ErrorColor,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                            Switch(
+                                                checked = isAvailable,
+                                                onCheckedChange = { newStatus ->
+                                                    val id = prestataireId
+                                                    if (id == null || id == 0L) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Prestataire non identifié",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        return@Switch
+                                                    }
+                                                    isUpdatingAvailability = true
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            val success =
+                                                                prestataireRepo.updateAvailability(
+                                                                    id,
+                                                                    newStatus
+                                                                )
+                                                            if (success) {
+                                                                isAvailable = newStatus
+                                                                Toast.makeText(
+                                                                    context,
+                                                                    if (newStatus) "Vous êtes maintenant disponible" else "Vous êtes maintenant indisponible",
+                                                                    Toast.LENGTH_SHORT
+                                                                ).show()
+                                                            } else {
+                                                                Toast.makeText(
+                                                                    context,
+                                                                    "Erreur lors de la mise à jour",
+                                                                    Toast.LENGTH_SHORT
+                                                                ).show()
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Erreur réseau",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        } finally {
+                                                            isUpdatingAvailability = false
                                                         }
-                                                    )
+                                                    }
                                                 },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = NavyPrimary,
-                                                    selectedLabelColor = Color.White,
-                                                    disabledSelectedContainerColor = NavyPrimary
+                                                enabled = !isUpdatingAvailability,
+                                                colors = SwitchDefaults.colors(
+                                                    checkedThumbColor = NavyPrimary,
+                                                    checkedTrackColor = NavyPrimary.copy(alpha = 0.5f),
+                                                    uncheckedThumbColor = Gray400,
+                                                    uncheckedTrackColor = Gray300
                                                 )
                                             )
                                         }
                                     }
                                 }
-                            }
 
-                            if (filteredReservations.isEmpty()) {
                                 item {
-                                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                                    if (isLoadingRevenue) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(color = NavyPrimary)
+                                        }
+                                    } else if (weeklyRevenue.isNotEmpty()) {
+                                        RevenueChart(
+                                            data = weeklyRevenue.associate { it.day to it.amount },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    } else {
                                         Text(
-                                            text = if (reservations.isEmpty()) "Aucune réservation pour le moment" else "Aucune réservation avec ce statut",
-                                            color = Gray500,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            text = "Aucune donnée de revenus disponible",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Gray500
                                         )
                                     }
                                 }
-                            } else {
-                                items(filteredReservations) { reservation ->
-                                    PrestataireReservationCard(
-                                        reservation = reservation,
-                                        prestataireId = prestataireId ?: 0L,
-                                        onAction = { coroutineScope.launch { loadDashboardData() } },
-                                        onCardClick = {
-                                            selectedReservation = reservation
-                                            showDetailSheet = true
+
+                                item {
+                                    if (isLoading) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(color = NavyPrimary)
                                         }
+                                    } else {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            StatCard(
+                                                label = "Total",
+                                                value = totalCount.toString(),
+                                                icon = Icons.Default.ListAlt,
+                                                color = NavyPrimary,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            StatCard(
+                                                label = "En attente",
+                                                value = pendingCount.toString(),
+                                                icon = Icons.Default.Pending,
+                                                color = Color(0xFFFFB800),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            StatCard(
+                                                label = "Terminées",
+                                                value = completedCount.toString(),
+                                                icon = Icons.Default.CheckCircle,
+                                                color = GreenPrimary,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "📋 Dernières demandes",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = NavyPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        TextButton(onClick = {
+                                            selectedTab = 1
+                                        }) { Text("Voir tout", color = NavyPrimary) }
+                                    }
+                                }
+
+                                if (reservations.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(vertical = 24.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Icon(
+                                                    Icons.Default.Inbox,
+                                                    contentDescription = null,
+                                                    tint = Gray300,
+                                                    modifier = Modifier.size(48.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    "Aucune réservation pour le moment",
+                                                    color = Gray500
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(reservations.take(5)) { reservation ->
+                                        PrestataireReservationCard(
+                                            reservation = reservation,
+                                            prestataireId = prestataireId ?: 0L,
+                                            onAction = {
+                                                coroutineScope.launch { loadDashboardData() }
+                                            },
+                                            onCardClick = {
+                                                selectedReservation = reservation
+                                                showDetailSheet = true
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    1 -> {
+
+                        SwipeRefresh(
+                            state = rememberSwipeRefreshState(isRefreshing),
+                            onRefresh = {
+                                isRefreshing = true
+                                coroutineScope.launch {
+                                    try {
+                                        loadDashboardData()
+                                    } finally {
+                                        isRefreshing = false
+                                    }
+                                }
+                            }
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    horizontal = 20.dp,
+                                    vertical = 12.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                item {
+                                    Text(
+                                        "Mes réservations",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = NavyPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "${filteredReservations.size} réservation(s)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Gray500
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
 
-                2 -> {
-                    var disponibilites by remember { mutableStateOf<List<Disponibilite>>(emptyList()) }
-                    var isLoadingDispo by remember { mutableStateOf(true) }
-                    var showAddSheet by remember { mutableStateOf(false) }
-                    var errorMessageDispo by remember { mutableStateOf<String?>(null) }
-
-                    // Charger les disponibilités
-                    LaunchedEffect(Unit) {
-                        isLoadingDispo = true
-                        errorMessageDispo = null
-                        val data = prestataireRepo.getDisponibilites(prestataireId ?: 0L)
-                        if (data != null) {
-                            disponibilites = data
-                        } else {
-                            errorMessageDispo = "Impossible de charger vos disponibilités"
-                        }
-                        isLoadingDispo = false
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
-                    ) {
-                        // En-tête
-                        Text(
-                            text = "Mes disponibilités",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = NavyPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${disponibilites.size} créneau(x) défini(s)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Gray500
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Contenu
-                        when {
-                            isLoadingDispo -> {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = NavyPrimary)
-                                }
-                            }
-                            errorMessageDispo != null -> {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.Error, contentDescription = null, tint = ErrorColor, modifier = Modifier.size(48.dp))
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(errorMessageDispo!!, color = ErrorColor, style = MaterialTheme.typography.bodyMedium)
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Button(onClick = {
-                                            isLoadingDispo = true
-                                            errorMessageDispo = null
-                                            coroutineScope.launch {
-                                                val data = prestataireRepo.getDisponibilites(prestataireId ?: 0L)
-                                                if (data != null) {
-                                                    disponibilites = data
-                                                } else {
-                                                    errorMessageDispo = "Impossible de charger vos disponibilités"
-                                                }
-                                                isLoadingDispo = false
+                                if (reservations.isNotEmpty()) {
+                                    item {
+                                        Row(
+                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            listOf(
+                                                "Toutes",
+                                                "EN_ATTENTE",
+                                                "ACCEPTEE",
+                                                "EN_COURS",
+                                                "TERMINEE",
+                                                "ANNULEE"
+                                            ).forEach { statut ->
+                                                FilterChip(
+                                                    selected = selectedFilter == statut,
+                                                    onClick = { selectedFilter = statut },
+                                                    label = {
+                                                        Text(
+                                                            text = when (statut) {
+                                                                "Toutes" -> "Toutes"
+                                                                "EN_ATTENTE" -> "En attente"
+                                                                "ACCEPTEE" -> "Acceptées"
+                                                                "EN_COURS" -> "En cours"
+                                                                "TERMINEE" -> "Terminées"
+                                                                else -> "Annulées"
+                                                            }
+                                                        )
+                                                    },
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        selectedContainerColor = NavyPrimary,
+                                                        selectedLabelColor = Color.White,
+                                                        disabledSelectedContainerColor = NavyPrimary
+                                                    )
+                                                )
                                             }
-                                        }) {
-                                            Text("Réessayer")
                                         }
                                     }
                                 }
-                            }
-                            disponibilites.isEmpty() -> {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Gray300, modifier = Modifier.size(48.dp))
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text("Aucune disponibilité", color = Gray500)
-                                        Text("Ajoutez vos créneaux pour être visible", color = Gray400, style = MaterialTheme.typography.bodySmall)
+
+                                if (filteredReservations.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(vertical = 24.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (reservations.isEmpty()) "Aucune réservation pour le moment" else "Aucune réservation avec ce statut",
+                                                color = Gray500,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
                                     }
-                                }
-                            }
-                            else -> {
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(disponibilites) { dispo ->
-                                        DisponibiliteCard(
-                                            disponibilite = dispo,
-                                            onDelete = {
-                                                coroutineScope.launch {
-                                                    val success = prestataireRepo.deleteDisponibilite(dispo.id)
-                                                    if (success) {
-                                                        val data = prestataireRepo.getDisponibilites(prestataireId ?: 0L)
-                                                        if (data != null) {
-                                                            disponibilites = data
-                                                        }
-                                                        Toast.makeText(context, "Supprimée", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        Toast.makeText(context, "Erreur de suppression", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }
+                                } else {
+                                    items(filteredReservations) { reservation ->
+                                        PrestataireReservationCard(
+                                            reservation = reservation,
+                                            prestataireId = prestataireId ?: 0L,
+                                            onAction = { coroutineScope.launch { loadDashboardData() } },
+                                            onCardClick = {
+                                                selectedReservation = reservation
+                                                showDetailSheet = true
                                             }
                                         )
                                     }
@@ -595,43 +660,204 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                         }
                     }
 
-                    // Bouton flottant
-                    if (!isLoadingDispo && errorMessageDispo == null) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.BottomEnd
-                        ) {
-                            FloatingActionButton(
-                                onClick = { showAddSheet = true },
-                                containerColor = NavyPrimary,
-                                contentColor = Color.White,
-                                modifier = Modifier.padding(20.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Ajouter")
-                            }
+                    2 -> {
+                        var disponibilites by remember {
+                            mutableStateOf<List<Disponibilite>>(
+                                emptyList()
+                            )
                         }
-                    }
+                        var isLoadingDispo by remember { mutableStateOf(true) }
+                        var showAddSheet by remember { mutableStateOf(false) }
+                        var errorMessageDispo by remember { mutableStateOf<String?>(null) }
 
-                    // Bottom Sheet d'ajout
-                    if (showAddSheet) {
-                        AddDisponibiliteBottomSheet(
-                            prestataireId = prestataireId ?: 0L,
-                            onDismiss = { showAddSheet = false },
-                            onSuccess = {
-                                showAddSheet = false
-                                // Recharger la liste
-                                coroutineScope.launch {
-                                    val data = prestataireRepo.getDisponibilites(prestataireId ?: 0L)
-                                    if (data != null) {
-                                        disponibilites = data
+                        // Charger les disponibilités
+                        LaunchedEffect(Unit) {
+                            isLoadingDispo = true
+                            errorMessageDispo = null
+                            val data = prestataireRepo.getDisponibilites(prestataireId ?: 0L)
+                            if (data != null) {
+                                disponibilites = data
+                            } else {
+                                errorMessageDispo = "Impossible de charger vos disponibilités"
+                            }
+                            isLoadingDispo = false
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                        ) {
+                            // En-tête
+                            Text(
+                                text = "Mes disponibilités",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = NavyPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${disponibilites.size} créneau(x) défini(s)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Gray500
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Contenu
+                            when {
+                                isLoadingDispo -> {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(color = NavyPrimary)
+                                    }
+                                }
+
+                                errorMessageDispo != null -> {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                Icons.Default.Error,
+                                                contentDescription = null,
+                                                tint = ErrorColor,
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                errorMessageDispo!!,
+                                                color = ErrorColor,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Button(onClick = {
+                                                isLoadingDispo = true
+                                                errorMessageDispo = null
+                                                coroutineScope.launch {
+                                                    val data = prestataireRepo.getDisponibilites(
+                                                        prestataireId ?: 0L
+                                                    )
+                                                    if (data != null) {
+                                                        disponibilites = data
+                                                    } else {
+                                                        errorMessageDispo =
+                                                            "Impossible de charger vos disponibilités"
+                                                    }
+                                                    isLoadingDispo = false
+                                                }
+                                            }) {
+                                                Text("Réessayer")
+                                            }
+                                        }
+                                    }
+                                }
+
+                                disponibilites.isEmpty() -> {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = Gray300,
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("Aucune disponibilité", color = Gray500)
+                                            Text(
+                                                "Ajoutez vos créneaux pour être visible",
+                                                color = Gray400,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                }
+
+                                else -> {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(disponibilites) { dispo ->
+                                            DisponibiliteCard(
+                                                disponibilite = dispo,
+                                                onDelete = {
+                                                    coroutineScope.launch {
+                                                        val success =
+                                                            prestataireRepo.deleteDisponibilite(
+                                                                dispo.id
+                                                            )
+                                                        if (success) {
+                                                            val data =
+                                                                prestataireRepo.getDisponibilites(
+                                                                    prestataireId ?: 0L
+                                                                )
+                                                            if (data != null) {
+                                                                disponibilites = data
+                                                            }
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Supprimée",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        } else {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Erreur de suppression",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        )
-                    }
-                }
+                        }
 
-                3 -> ProfileScreen(onLogout = onLogout)
+                        // Bouton flottant
+                        if (!isLoadingDispo && errorMessageDispo == null) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.BottomEnd
+                            ) {
+                                FloatingActionButton(
+                                    onClick = { showAddSheet = true },
+                                    containerColor = NavyPrimary,
+                                    contentColor = Color.White,
+                                    modifier = Modifier.padding(20.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Ajouter")
+                                }
+                            }
+                        }
+
+                        // Bottom Sheet d'ajout
+                        if (showAddSheet) {
+                            AddDisponibiliteBottomSheet(
+                                prestataireId = prestataireId ?: 0L,
+                                onDismiss = { showAddSheet = false },
+                                onSuccess = {
+                                    showAddSheet = false
+                                    // Recharger la liste
+                                    coroutineScope.launch {
+                                        val data =
+                                            prestataireRepo.getDisponibilites(prestataireId ?: 0L)
+                                        if (data != null) {
+                                            disponibilites = data
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    3 -> ProfileScreen(onLogout = onLogout)
+                }
             }
 
             if (showDetailSheet && selectedReservation != null) {
@@ -756,6 +982,46 @@ fun PrestataireDashboard(onLogout: () -> Unit,
                 }
             }
 
+            if (bookingPromptService != null) {
+                AlertDialog(
+                    onDismissRequest = { bookingPromptService = null },
+                    title = { Text("Réserver ce service") },
+                    text = {
+                        Column {
+                            Text("Vous souhaitez réserver le service :")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = bookingPromptService!!.nom,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = NavyPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Pour cela, vous devez d'abord trouver un prestataire qui propose ce service.")
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val service = bookingPromptService
+                                bookingPromptService = null
+                                if (service != null) {
+                                    filterForExplorer = service.nom
+                                    selectedTab = 1
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NavyPrimary)
+                        ) {
+                            Text("Trouver un professionnel")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { bookingPromptService = null }) {
+                            Text("Annuler")
+                        }
+                    }
+                )
+            }
         }
     }
 }
