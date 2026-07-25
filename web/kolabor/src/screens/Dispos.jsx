@@ -2,6 +2,10 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function Dispos() {
+  const [jourAdd, setJourAdd] = React.useState("Lundi");
+  const [debutAdd, setDebutAdd] = React.useState("08:00");
+  const [finAdd, setFinAdd] = React.useState("18:00");
+
   const {
     calDays,
     isRoleClient,
@@ -93,6 +97,11 @@ function Dispos() {
     navPros,
     pros,
     featured,
+    me,
+    disposList,
+    disposLoading,
+    ajouterDisponibilite,
+    supprimerDisponibilite,
   } = useApp();
   return (
     <React.Fragment>
@@ -100,14 +109,14 @@ function Dispos() {
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          MF
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Marc Fontaine
+            {me.nom}
           </div>
           <div className="k489">
-            Pro · Vérifié
+            Pro
           </div>
         </div>
       </div>
@@ -128,9 +137,9 @@ function Dispos() {
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
         </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
+        <div className="k430" onClick={nav.params}>
+          <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Paramètres
         </div>
       </div>
     </aside>
@@ -142,42 +151,49 @@ function Dispos() {
         Définissez vos horaires de travail pour chaque jour.
       </p>
       <div className="k763">
-        {jours.map((j, __i) => (
-<div key={j.id ?? __i} className="k764">
+        {disposLoading ? (
+<p style={{color: "#6B7280"}}>Chargement…</p>
+) : disposList.length === 0 ? (
+<p style={{color: "#6B7280"}}>Aucune disponibilité enregistrée pour le moment.</p>
+) : disposList.map((d) => (
+<div key={d.key} className="k764">
   <div className="k765">
-    <span style={j.toggleStyle}>
-      <span style={j.knobStyle}></span>
-    </span>
     <span className="k374">
-      {j.name}
+      {d.jour}
     </span>
   </div>
-  {j.open ? (
-<React.Fragment>
-    <div className="k199">
+  <div className="k199">
       <div className="k766">
-        08h00
+        {d.heureDebut}
       </div>
       <span className="k211">
         —
       </span>
       <div className="k766">
-        18h00
+        {d.heureFin}
       </div>
     </div>
-</React.Fragment>
-) : null}
-  {j.closed ? (
-<React.Fragment>
-    <span className="k767">
-      Indisponible
-    </span>
-</React.Fragment>
-) : null}
+  <button className="k767" onClick={() => supprimerDisponibilite(d.id)}>
+    Supprimer
+  </button>
 </div>
 ))}
-        <button className="k768">
-          Enregistrer les disponibilités
+        <div className="k764">
+          <div className="k765">
+            <select className="k339" value={jourAdd} onChange={(e) => setJourAdd(e.target.value)}>
+              {["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((j) => (
+<option key={j} value={j}>{j}</option>
+))}
+            </select>
+          </div>
+          <div className="k199">
+            <input type="time" className="k766" value={debutAdd} onChange={(e) => setDebutAdd(e.target.value)} />
+            <span className="k211">—</span>
+            <input type="time" className="k766" value={finAdd} onChange={(e) => setFinAdd(e.target.value)} />
+          </div>
+        </div>
+        <button className="k768" onClick={() => ajouterDisponibilite({ jour: jourAdd, heureDebut: debutAdd, heureFin: finAdd })}>
+          Ajouter cette disponibilité
         </button>
       </div>
     </div>

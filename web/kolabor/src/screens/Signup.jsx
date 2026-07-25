@@ -1,7 +1,131 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { navigateTo } from "../router.jsx";
+import { uploadUserPhoto } from "../api/users.js";
+import { getUserId } from "../utils/field.js";
+
+const PIECE_MAX_SIZE = 10 * 1024 * 1024;
+const PIECE_TYPES = ["image/png", "image/jpeg", "image/jpg", "application/pdf"];
 
 function Signup() {
+  const { register, login, authLoading, authError, setAuthError } = useAuth();
+  const [prenom, setPrenom] = React.useState("");
+  const [nomField, setNomField] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [telephone, setTelephone] = React.useState("");
+  const [metier, setMetier] = React.useState("");
+  const [zone, setZone] = React.useState("");
+  const [tarifHoraire, setTarifHoraire] = React.useState("");
+  const [motDePasse, setMotDePasse] = React.useState("");
+  const [acceptTerms, setAcceptTerms] = React.useState(false);
+  const [pieceFile, setPieceFile] = React.useState(null);
+  const [pieceError, setPieceError] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const pieceInputRef = React.useRef(null);
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function resetForm() {
+    setPrenom("");
+    setNomField("");
+    setEmail("");
+    setTelephone("");
+    setMetier("");
+    setZone("");
+    setTarifHoraire("");
+    setMotDePasse("");
+    setAcceptTerms(false);
+    removePiece();
+  }
+
+  function handlePieceChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!PIECE_TYPES.includes(file.type)) {
+      setPieceError("Format non supporté. Utilisez un PNG, JPG ou PDF.");
+      return;
+    }
+    if (file.size > PIECE_MAX_SIZE) {
+      setPieceError("Le fichier dépasse 10 Mo.");
+      return;
+    }
+    setPieceError("");
+    setPieceFile(file);
+  }
+
+  function removePiece() {
+    setPieceFile(null);
+    setPieceError("");
+    if (pieceInputRef.current) pieceInputRef.current.value = "";
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setAuthError("");
+    if (!acceptTerms) {
+      setAuthError("Merci d'accepter les conditions générales pour continuer.");
+      return;
+    }
+    const payload = {
+      nom: `${prenom} ${nomField}`.trim(),
+      email,
+      motDePasse,
+      telephone: telephone ? `+509 ${telephone}` : undefined,
+      role: isRolePro ? "PRESTATAIRE" : "CLIENT",
+      ...(isRolePro ? {
+        competences: metier || undefined,
+        tarifHoraire: tarifHoraire ? Number(tarifHoraire) : undefined,
+        zoneIntervention: zone || undefined,
+      } : {}),
+    };
+    setSubmitting(true);
+    const startedAt = Date.now();
+    const settle = async () => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 2000) await wait(2000 - elapsed);
+    };
+    try {
+      const user = await register(payload);
+      if (user) {
+        if (pieceFile) {
+          const id = getUserId(user);
+          if (id) {
+            try { await uploadUserPhoto(id, pieceFile); } catch { /* upload de la pièce échoué, on n'empêche pas l'inscription */ }
+          }
+        }
+        await settle();
+        const role = (user?.["rôle"] || user?.role || "").toString().toUpperCase();
+        resetForm();
+        navigateTo(role.includes("PRO") ? "dashpro" : "dashclient");
+        return;
+      }
+      // Le backend n'a pas renvoyé de session : on tente une connexion directe
+      // avec les identifiants qui viennent d'être créés.
+      try {
+        const loggedUser = await login({ email, motDePasse });
+        if (pieceFile) {
+          const id = getUserId(loggedUser);
+          if (id) {
+            try { await uploadUserPhoto(id, pieceFile); } catch { /* upload de la pièce échoué, on n'empêche pas l'inscription */ }
+          }
+        }
+        await settle();
+        const role = (loggedUser?.["rôle"] || loggedUser?.role || "").toString().toUpperCase();
+        resetForm();
+        navigateTo(role.includes("PRO") ? "dashpro" : "dashclient");
+      } catch {
+        await settle();
+        navigateTo("login");
+      }
+    } catch {
+      await settle();
+      // authError déjà renseigné par le contexte
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const {
     calDays,
     isRoleClient,
@@ -96,6 +220,7 @@ function Signup() {
   } = useApp();
   return (
     <React.Fragment>
+  <div className="auth-shell">
   <div className="k327">
     <div className="k328">
       <h1 className="k329">
@@ -112,26 +237,31 @@ function Signup() {
           Je suis professionnel
         </button>
       </div>
-      <div className="k331">
+      <form className="k331" onSubmit={handleSubmit}>
+        {authError ? (
+          <div style={{background: "#FEE2E2", color: "#B91C1C", padding: "10px 14px", borderRadius: 10, fontSize: 13.5, fontWeight: 600}}>
+            {authError}
+          </div>
+        ) : null}
         <div className="k332">
           <div>
             <label className="k307">
               Prénom
             </label>
-            <input className="k333" placeholder="Peter" />
+            <input className="k333" placeholder="Prénom" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
           </div>
           <div>
             <label className="k307">
               Nom
             </label>
-            <input className="k333" placeholder="Joseph" />
+            <input className="k333" placeholder="Nom" value={nomField} onChange={(e) => setNomField(e.target.value)} />
           </div>
         </div>
         <div>
           <label className="k307">
             Adresse e-mail
           </label>
-          <input className="k333" placeholder="vous@email.com" />
+          <input className="k333" type="email" required placeholder="vous@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
           <label className="k307">
@@ -141,7 +271,7 @@ function Signup() {
             <span className="k335">
               +509
             </span>
-            <input className="k336" placeholder="55 66 7788" />
+            <input className="k336" placeholder="55 66 7788" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
           </div>
         </div>
         {isRolePro ? (
@@ -156,9 +286,10 @@ function Signup() {
                 Métier / Catégorie
               </label>
               <div className="k201">
-                <select className="k339">
+                <select className="k339" value={metier} onChange={(e) => setMetier(e.target.value)}>
+                  <option value="">Sélectionnez un métier</option>
                   {metiers.map((m, __i) => (
-<option key={m.id ?? __i}>
+<option key={m.id ?? __i} value={m}>
   {m}
 </option>
 ))}
@@ -172,9 +303,10 @@ function Signup() {
                   Zone d'intervention
                 </label>
                 <div className="k201">
-                  <select className="k339">
+                  <select className="k339" value={zone} onChange={(e) => setZone(e.target.value)}>
+                    <option value="">Sélectionnez une zone</option>
                     {zonesHaiti.map((z, __i) => (
-<option key={z.id ?? __i}>
+<option key={z.id ?? __i} value={z}>
   {z}
 </option>
 ))}
@@ -184,30 +316,44 @@ function Signup() {
               </div>
               <div>
                 <label className="k307">
-                  Années d'expérience
+                  Tarif horaire (Gdes)
                 </label>
-                <input className="k341" placeholder="8" />
+                <input className="k341" placeholder="250" value={tarifHoraire} onChange={(e) => setTarifHoraire(e.target.value)} />
               </div>
-            </div>
-            <div>
-              <label className="k307">
-                Tarif horaire (Gdes)
-              </label>
-              <input className="k341" placeholder="250" />
             </div>
             <div>
               <label className="k307">
                 Pièce d'identité (vérification)
               </label>
-              <div className="k342">
-                <i className="icon fa-solid fa-upload" style={{fontSize: "22px", color: "#9CA3AF"}}></i>
+              <input
+                ref={pieceInputRef}
+                type="file"
+                accept="image/png,image/jpeg,application/pdf"
+                style={{display: "none"}}
+                onChange={handlePieceChange}
+              />
+              <div className="k342" onClick={() => pieceInputRef.current?.click()} style={{cursor: "pointer"}}>
+                <i className={`icon fa-solid ${pieceFile ? "fa-circle-check" : "fa-upload"}`} style={{fontSize: "22px", color: pieceFile ? "#139356" : "#9CA3AF"}}></i>
                 <span className="k343">
-                  Déposer votre pièce
+                  {pieceFile ? pieceFile.name : "Déposer votre pièce"}
                 </span>
                 <span className="k27">
-                  PNG, JPG, PDF jusqu'à 10 Mo
+                  {pieceFile ? "Cliquez pour changer le fichier" : "PNG, JPG, PDF jusqu'à 10 Mo"}
                 </span>
+                {pieceFile ? (
+                  <span
+                    className="k318"
+                    onClick={(e) => { e.stopPropagation(); removePiece(); }}
+                  >
+                    Retirer
+                  </span>
+                ) : null}
               </div>
+              {pieceError ? (
+                <div style={{color: "#B91C1C", fontSize: 13, fontWeight: 600, marginTop: 6}}>
+                  {pieceError}
+                </div>
+              ) : null}
             </div>
           </div>
 </React.Fragment>
@@ -216,10 +362,10 @@ function Signup() {
           <label className="k307">
             Mot de passe
           </label>
-          <input className="k344" type="password" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" />
+          <input className="k344" type="password" required minLength={6} placeholder="**************" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} />
         </div>
         <label className="k345">
-          <span className="k346">
+          <span className="k346" onClick={() => setAcceptTerms((v) => !v)} style={acceptTerms ? {background: "#139356"} : undefined}>
             <i className="icon fa-solid fa-check" style={{fontSize: "13px", color: "#fff"}}></i>
           </span>
           J'accepte les
@@ -228,10 +374,10 @@ function Signup() {
           </span>
           et la politique de confidentialité.
         </label>
-        <button className="k348" onClick={nav.creerCompte}>
-          Créer mon compte
+        <button className="k348" type="submit" disabled={authLoading || submitting || !acceptTerms} title={!acceptTerms ? "Veuillez accepter les conditions générales pour continuer" : undefined}>
+          {submitting || authLoading ? "Envoi en cours..." : "Créer mon compte"}
         </button>
-      </div>
+      </form>
       <p className="k349">
         Déjà un compte ?
         <span className="k318" onClick={nav.login}>
@@ -273,6 +419,7 @@ function Signup() {
         </div>
       </div>
     </div>
+  </div>
   </div>
     </React.Fragment>
   );

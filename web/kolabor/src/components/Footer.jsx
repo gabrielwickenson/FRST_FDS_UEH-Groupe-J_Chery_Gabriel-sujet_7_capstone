@@ -1,5 +1,6 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
+import kolaborLogoWhite from "../assets/kolabor-logo-white.svg";
 
 function Footer() {
   const { nav } = useApp();
@@ -9,12 +10,7 @@ function Footer() {
     <div className="k798">
       <div>
         <div className="k799">
-          <span className="k800">
-            K
-          </span>
-          <span className="k801">
-            Kolabor
-          </span>
+          <img src={kolaborLogoWhite} alt="Kolabor" className="footer-logo" />
         </div>
         <p className="k802">
           La marketplace de services à domicile qui connecte les Haïtiens aux meilleurs professionnels.

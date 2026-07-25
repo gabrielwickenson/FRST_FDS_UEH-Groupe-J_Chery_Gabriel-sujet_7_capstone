@@ -13,6 +13,7 @@ function ServiceDetail() {
     roleProStyle,
     services,
     allPros,
+    selectedService,
     screen,
     isAccueil,
     isServices,
@@ -95,6 +96,7 @@ function ServiceDetail() {
     pros,
     featured,
   } = useApp();
+  const sv = selectedService || {};
   return (
     <React.Fragment>
   <section className="k277">
@@ -102,17 +104,17 @@ function ServiceDetail() {
       <span className="k131" onClick={nav.services}>
         Services
       </span>
-      /  Plomberie  /
+      /  {sv.cat || ""}  /
       <span className="k132">
-        Réparation de fuite d'eau
+        {sv.title || "Service"}
       </span>
     </div>
     <div className="k279">
       <div>
         <div className="k280">
-          <img className="k73" src={img("svc-detail-main", 800, 600)} alt="Photo du service" style={{objectFit: "cover", borderRadius: "24px"}} />
+          <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt="Photo du service" style={{objectFit: "cover", borderRadius: "24px"}} />
           <span className="k281">
-            Plomberie
+            {sv.cat || ""}
           </span>
         </div>
         <div className="k282">
@@ -122,18 +124,9 @@ function ServiceDetail() {
           <img className="k283" src={img("svc-th-4", 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
         </div>
         <h1 className="k284">
-          Réparation de fuite d'eau
+          {sv.title || "Service"}
         </h1>
         <div className="k285">
-          <div className="k234">
-            <i className="icon fa-solid fa-star" style={{fontSize: "16px", color: "#F59E0B"}}></i>
-            <strong className="k132">
-              4,9
-            </strong>
-            <span className="k211">
-              (127 avis)
-            </span>
-          </div>
           <span className="k230">
             Intervention rapide
           </span>
@@ -143,7 +136,7 @@ function ServiceDetail() {
             Description
           </h2>
           <p className="k244">
-            Détection et réparation de fuites d'eau sur tuyauterie, robinetterie et raccords. Diagnostic précis, intervention soignée et garantie 30 jours. Déplacement inclus dans la zone métropolitaine de Port-au-Prince.
+            {sv.description || "Aucune description disponible pour ce service."}
           </p>
           <h3 className="k288">
             Ce qui est inclus
@@ -171,39 +164,28 @@ function ServiceDetail() {
       <aside className="k291">
         <div className="k292">
           <div className="k293">
-            À partir de
+            Tarif
           </div>
           <div className="k294">
             <span className="k295">
-              250
-            </span>
-            <span className="k296">
-              Gdes
+              Sur devis
             </span>
           </div>
           <button className="k297" onClick={nav.reserver}>
             Réserver ce service
           </button>
-          <button className="k298" onClick={nav.messages}>
-            Demander un devis
-          </button>
         </div>
         <div className="k299">
-          <div className="k20">
-            <span className="k300">
-              MF
-            </span>
-            <div className="k22">
-              <div className="k23">
-                Marc Fontaine
-              </div>
-              <div className="k95">
-                Plombier certifié
-              </div>
+          <div className="k22">
+            <div className="k23">
+              Trouvez un professionnel
+            </div>
+            <div className="k95">
+              Pour {sv.cat || "ce service"}
             </div>
           </div>
-          <button className="k301" onClick={nav.profil}>
-            Voir le profil
+          <button className="k301" onClick={nav.pros}>
+            Voir les professionnels
           </button>
         </div>
       </aside>

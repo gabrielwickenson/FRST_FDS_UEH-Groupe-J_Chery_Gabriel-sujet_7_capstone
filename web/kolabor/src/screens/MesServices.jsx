@@ -93,6 +93,7 @@ function MesServices() {
     navPros,
     pros,
     featured,
+    me,
   } = useApp();
   return (
     <React.Fragment>
@@ -100,11 +101,11 @@ function MesServices() {
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          MF
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Marc Fontaine
+            {me.nom}
           </div>
           <div className="k489">
             Pro · Vérifié
@@ -128,9 +129,9 @@ function MesServices() {
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
         </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
+        <div className="k430" onClick={nav.params}>
+          <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Paramètres
         </div>
       </div>
     </aside>
@@ -144,10 +145,6 @@ function MesServices() {
             Gérez les prestations que vous proposez.
           </p>
         </div>
-        <button className="k495">
-          <i className="icon fa-solid fa-plus" style={{fontSize: "17px", color: "#fff"}}></i>
-          Ajouter un service
-        </button>
       </div>
       <div className="k752">
         <div className="k753">
@@ -166,14 +163,6 @@ function MesServices() {
           <span className="k756">
             Actif
           </span>
-          <div className="k757">
-            <button className="k758">
-              <i className="icon fa-solid fa-pen" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-            <button className="k759">
-              <i className="icon fa-solid fa-trash" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-          </div>
         </div>
         <div className="k753">
           <span className="k760"></span>
@@ -191,14 +180,6 @@ function MesServices() {
           <span className="k756">
             Actif
           </span>
-          <div className="k757">
-            <button className="k758">
-              <i className="icon fa-solid fa-pen" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-            <button className="k759">
-              <i className="icon fa-solid fa-trash" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-          </div>
         </div>
         <div className="k753">
           <span className="k761"></span>
@@ -216,14 +197,6 @@ function MesServices() {
           <span className="k762">
             En pause
           </span>
-          <div className="k757">
-            <button className="k758">
-              <i className="icon fa-solid fa-pen" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-            <button className="k759">
-              <i className="icon fa-solid fa-trash" style={{fontSize: "15px", color: "currentColor"}}></i>
-            </button>
-          </div>
         </div>
       </div>
     </div>

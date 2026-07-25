@@ -617,63 +617,6 @@ function Accueil() {
       </div>
     </div>
   </section>
-  <section className="k98">
-    <div className="k99">
-      <div className="k100">
-        <span className="k101">
-          <i className="icon fa-solid fa-mobile-screen-button" style={{fontSize: "15px", color: "#139356"}}></i>
-          Application mobile
-        </span>
-        <h2 className="k102">
-          Kolabor dans votre poche
-        </h2>
-        <p className="k103">
-          Réservez un professionnel, suivez vos demandes et discutez en temps réel, où que vous soyez. Téléchargez l'application gratuitement.
-        </p>
-        <div className="k104">
-          <button className="k105">
-            <i className="icon fa-brands fa-apple" style={{fontSize: "22px", color: "#fff"}}></i>
-            <span className="k106">
-              <span className="k107">
-                Télécharger sur
-              </span>
-              <span className="k108">
-                App Store
-              </span>
-            </span>
-          </button>
-          <button className="k105">
-            <i className="icon fa-brands fa-google-play" style={{fontSize: "22px"}}></i>
-            <span className="k106">
-              <span className="k107">
-                Disponible sur
-              </span>
-              <span className="k108">
-                Google Play
-              </span>
-            </span>
-          </button>
-        </div>
-        <div className="k109">
-          <span className="k110">
-            ★★★★★
-          </span>
-          <span className="k111">
-            4,8 · plus de 10 000 téléchargements
-          </span>
-        </div>
-      </div>
-      <div className="k112">
-        <div className="k113">
-          <div className="k114"></div>
-          <div className="k115">
-            <div className="k116"></div>
-            <img className="k117" src={img("app-phone", 800, 600)} alt="Capture de l'app Kolabor" style={{objectFit: "cover", borderRadius: "26px"}} />
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
   <section className="k118">
     <div className="k119">
       <div className="k120"></div>

@@ -1,7 +1,15 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
 
 function Parametres() {
+  const { isPro } = useAuth();
+  const fileInputRef = React.useRef(null);
+  const [saveMsg, setSaveMsg] = React.useState("");
+  const [nomInput, setNomInput] = React.useState("");
+  const [telephoneInput, setTelephoneInput] = React.useState("");
+  const [tarifInput, setTarifInput] = React.useState("");
+
   const {
     calDays,
     isRoleClient,
@@ -93,37 +101,84 @@ function Parametres() {
     navPros,
     pros,
     featured,
+    me,
+    uploadPhotoMutation,
+    updateProfileMutation,
   } = useApp();
+
+  React.useEffect(() => {
+    setNomInput(me.nom);
+    setTelephoneInput(me.telephone);
+    setTarifInput(me.tarifHoraire === "" || me.tarifHoraire == null ? "" : String(me.tarifHoraire));
+  }, [me.nom, me.telephone, me.tarifHoraire]);
+
+  function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (file) uploadPhotoMutation.mutate(file);
+  }
+
+  function handleEnregistrer() {
+    setSaveMsg("");
+    if (!isPro) {
+      setSaveMsg("La mise à jour du profil n'est pas encore disponible côté serveur pour les comptes client (aucun endpoint de mise à jour n'est exposé par l'API pour ce rôle).");
+      return;
+    }
+    const payload = {
+      nom: nomInput || undefined,
+      telephone: telephoneInput || undefined,
+      tarifHoraire: tarifInput !== "" ? Number(tarifInput) : undefined,
+    };
+    updateProfileMutation.mutate(payload, {
+      onSuccess: () => setSaveMsg("Profil mis à jour."),
+      onError: () => setSaveMsg("Impossible de mettre à jour le profil. Réessayez."),
+    });
+  }
+
   return (
     <React.Fragment>
   <div className="k424">
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          PJ
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Peter Joseph
+            {me.nom}
           </div>
           <div className="k428">
-            Pétion-Ville
+            {me.ville}
           </div>
         </div>
       </div>
       <div className="k429">
-        <div className="k430" onClick={nav.dashclient}>
+        <div className="k430" onClick={isPro ? nav.dashpro : nav.dashclient}>
+          <i className={`icon fa-solid ${isPro ? "fa-building" : "fa-calendar-days"}`} style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          {isPro ? "Tableau de bord" : "Mes réservations"}
+        </div>
+        {isPro ? (
+<React.Fragment>
+        <div className="k430" onClick={nav.messervices}>
+          <i className="icon fa-solid fa-table-columns" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Mes services
+        </div>
+        <div className="k430" onClick={nav.dispos}>
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Mes réservations
+          Disponibilités
         </div>
-        <div className="k430" onClick={nav.favoris}>
-          <i className="icon fa-solid fa-heart" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Mes favoris
+        <div className="k430" onClick={nav.revenus}>
+          <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Revenus
         </div>
+</React.Fragment>
+) : (
+<React.Fragment>
         <div className="k430" onClick={nav.factures}>
           <i className="icon fa-solid fa-file" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Factures
         </div>
+</React.Fragment>
+)}
         <div className="k431">
           <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#fff"}}></i>
           Paramètres
@@ -143,45 +198,54 @@ function Parametres() {
         </h2>
         <div className="k738">
           <span className="k739">
-            PJ
+            {me.initials}
           </span>
-          <button className="k740">
-            Changer la photo
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoChange} style={{display: "none"}} />
+          <button className="k740" onClick={() => fileInputRef.current?.click()} disabled={uploadPhotoMutation.isPending}>
+            {uploadPhotoMutation.isPending ? "Envoi..." : "Changer la photo"}
           </button>
         </div>
-        <div className="k642">
-          <div>
-            <label className="k307">
-              Prénom
-            </label>
-            <input className="k333" defaultValue="Peter" />
-          </div>
-          <div>
-            <label className="k307">
-              Nom
-            </label>
-            <input className="k333" defaultValue="Joseph" />
-          </div>
+        <div className="k643">
+          <label className="k307">
+            Nom complet
+          </label>
+          <input className="k333" value={nomInput} onChange={(e) => setNomInput(e.target.value)} />
         </div>
         <div className="k643">
           <label className="k307">
             Adresse e-mail
           </label>
-          <input className="k333" defaultValue="peter.joseph@email.ht" />
+          <input className="k333" defaultValue={me.email} disabled />
         </div>
         <div className="k643">
           <label className="k307">
             Téléphone
           </label>
           <div className="k334">
-            <span className="k335">
-              +509
-            </span>
-            <input className="k336" defaultValue="55 66 7788" />
+            <input className="k336" value={telephoneInput} onChange={(e) => setTelephoneInput(e.target.value)} />
           </div>
         </div>
-        <button className="k741">
-          Enregistrer
+        {isPro ? (
+<div className="k643">
+  <label className="k307">
+    Tarif horaire (Gdes)
+  </label>
+  <input
+    className="k333"
+    type="number"
+    min="0"
+    step="1"
+    placeholder="250"
+    value={tarifInput}
+    onChange={(e) => setTarifInput(e.target.value)}
+  />
+</div>
+) : null}
+        {saveMsg ? (
+<p style={{color: saveMsg === "Profil mis à jour." ? "#139356" : "#B45309", fontSize: 13.5}}>{saveMsg}</p>
+) : null}
+        <button className="k741" onClick={handleEnregistrer} disabled={updateProfileMutation.isPending}>
+          {updateProfileMutation.isPending ? "Enregistrement..." : "Enregistrer"}
         </button>
       </div>
       <div className="k742">

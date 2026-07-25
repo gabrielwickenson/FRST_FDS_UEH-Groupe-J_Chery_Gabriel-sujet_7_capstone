@@ -93,21 +93,30 @@ function DashPro() {
     navPros,
     pros,
     featured,
+    me,
+    reservationsPro,
+    reservationsProLoading,
+    demandesEnAttente,
+    proStats,
+    proRevenueWeek,
+    accepterDemande,
+    refuserDemande,
   } = useApp();
+  const maxRevenue = Math.max(1, ...proRevenueWeek.map((d) => d.montant));
   return (
     <React.Fragment>
   <div className="k424">
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          MF
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Marc Fontaine
+            {me.nom}
           </div>
           <div className="k489">
-            Pro · Vérifié
+            Pro
           </div>
         </div>
       </div>
@@ -130,20 +139,16 @@ function DashPro() {
             Demandes reçues
           </span>
           <span className="k492">
-            3
+            {demandesEnAttente.length}
           </span>
         </div>
         <div className="k430" onClick={nav.revenus}>
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
         </div>
-        <div className="k430">
-          <i className="icon fa-solid fa-star" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Avis clients
-        </div>
-        <div className="k430">
-          <i className="icon fa-solid fa-chart-line" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Statistiques
+        <div className="k430" onClick={nav.params}>
+          <i className="icon fa-solid fa-sliders" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
+          Paramètres
         </div>
       </div>
     </aside>
@@ -151,30 +156,23 @@ function DashPro() {
       <div className="k190">
         <div>
           <h1 className="k493">
-            Bonjour, Marc 👋
+            Bonjour, {me.nom.split(" ")[0] || "vous"} 👋
           </h1>
           <p className="k494">
             Voici votre activité cette semaine.
           </p>
         </div>
-        <button className="k495">
-          <i className="icon fa-solid fa-plus" style={{fontSize: "17px", color: "#fff"}}></i>
-          Ajouter un service
-        </button>
       </div>
       <div className="k433">
         <div className="k434">
           <div className="k15">
-            Revenus du mois
+            Revenus
           </div>
           <div className="k496">
-            18 400
+            {proStats.revenus ?? proStats.revenuTotal ?? proStats.revenu ?? 0}
             <span className="k497">
               Gdes
             </span>
-          </div>
-          <div className="k498">
-            ▲ 12% vs mois dernier
           </div>
         </div>
         <div className="k434">
@@ -182,10 +180,10 @@ function DashPro() {
             Demandes en attente
           </div>
           <div className="k499">
-            3
+            {demandesEnAttente.length}
           </div>
           <div className="k500">
-            À traiter aujourd'hui
+            À traiter
           </div>
         </div>
         <div className="k434">
@@ -193,13 +191,13 @@ function DashPro() {
             Note moyenne
           </div>
           <div className="k499">
-            4,8
+            {proStats.moyenneNotes ?? proStats.note ?? "—"}
             <span className="k501">
               ★
             </span>
           </div>
           <div className="k502">
-            127 avis
+            {proStats.nombreAvis ?? 0} avis
           </div>
         </div>
         <div className="k434">
@@ -207,10 +205,10 @@ function DashPro() {
             Réservations
           </div>
           <div className="k499">
-            42
+            {proStats.nombrePrestations ?? reservationsPro.length}
           </div>
           <div className="k502">
-            ce mois-ci
+            au total
           </div>
         </div>
       </div>
@@ -225,69 +223,33 @@ function DashPro() {
             </span>
           </div>
           <div className="k248">
-            <div className="k507">
+            {reservationsProLoading ? (
+<p style={{color: "#6B7280"}}>Chargement…</p>
+) : demandesEnAttente.length === 0 ? (
+<p style={{color: "#6B7280"}}>Aucune demande en attente.</p>
+) : demandesEnAttente.map((r) => (
+<div key={r.key} className="k507">
               <span className="k508">
-                SM
+                {(r.clientNom || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
               </span>
               <div className="k22">
                 <div className="k471">
-                  Sophie Martin
+                  {r.clientNom}
                 </div>
                 <div className="k24">
-                  Fuite d'eau · Delmas · 16 Jan
+                  {r.titre} · {r.adresse} · {r.dateHeure}
                 </div>
               </div>
               <div className="k509">
-                <button className="k510">
+                <button className="k510" onClick={() => accepterDemande(r.id)}>
                   <i className="icon fa-solid fa-check" style={{fontSize: "17px", color: "#fff"}}></i>
                 </button>
-                <button className="k511">
+                <button className="k511" onClick={() => refuserDemande(r.id)}>
                   <i className="icon fa-solid fa-xmark" style={{fontSize: "15px", color: "currentColor"}}></i>
                 </button>
               </div>
             </div>
-            <div className="k507">
-              <span className="k512">
-                RJ
-              </span>
-              <div className="k22">
-                <div className="k471">
-                  Ricardo Joseph
-                </div>
-                <div className="k24">
-                  Débouchage · Pétion-Ville · 17 Jan
-                </div>
-              </div>
-              <div className="k509">
-                <button className="k510">
-                  <i className="icon fa-solid fa-check" style={{fontSize: "17px", color: "#fff"}}></i>
-                </button>
-                <button className="k511">
-                  <i className="icon fa-solid fa-xmark" style={{fontSize: "15px", color: "currentColor"}}></i>
-                </button>
-              </div>
-            </div>
-            <div className="k507">
-              <span className="k513">
-                GC
-              </span>
-              <div className="k22">
-                <div className="k471">
-                  Gladys Charles
-                </div>
-                <div className="k24">
-                  Installation · Carrefour · 19 Jan
-                </div>
-              </div>
-              <div className="k509">
-                <button className="k510">
-                  <i className="icon fa-solid fa-check" style={{fontSize: "17px", color: "#fff"}}></i>
-                </button>
-                <button className="k511">
-                  <i className="icon fa-solid fa-xmark" style={{fontSize: "15px", color: "currentColor"}}></i>
-                </button>
-              </div>
-            </div>
+))}
           </div>
         </div>
         <div className="k443">
@@ -295,48 +257,16 @@ function DashPro() {
             Revenus (7 jours)
           </h2>
           <div className="k515">
-            <div className="k516">
-              <div className="k517"></div>
+            {proRevenueWeek.length === 0 ? (
+<p style={{color: "#6B7280"}}>Pas encore de données.</p>
+) : proRevenueWeek.map((d, __i) => (
+<div key={__i} className="k516">
+              <div className="k517" style={{height: `${Math.max(4, (d.montant / maxRevenue) * 100)}px`}} title={`${d.montant} Gdes`}></div>
               <span className="k518">
-                L
+                {d.jour}
               </span>
             </div>
-            <div className="k516">
-              <div className="k519"></div>
-              <span className="k518">
-                M
-              </span>
-            </div>
-            <div className="k516">
-              <div className="k520"></div>
-              <span className="k518">
-                M
-              </span>
-            </div>
-            <div className="k516">
-              <div className="k521"></div>
-              <span className="k518">
-                J
-              </span>
-            </div>
-            <div className="k516">
-              <div className="k522"></div>
-              <span className="k518">
-                V
-              </span>
-            </div>
-            <div className="k516">
-              <div className="k523"></div>
-              <span className="k518">
-                S
-              </span>
-            </div>
-            <div className="k516">
-              <div className="k524"></div>
-              <span className="k518">
-                D
-              </span>
-            </div>
+))}
           </div>
         </div>
       </div>

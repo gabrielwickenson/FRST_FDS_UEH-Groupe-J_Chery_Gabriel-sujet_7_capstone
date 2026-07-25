@@ -24,7 +24,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
+@CrossOrigin(origins="http://localhost:5173")
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Authentification", description = "Inscription et connexion (public)")

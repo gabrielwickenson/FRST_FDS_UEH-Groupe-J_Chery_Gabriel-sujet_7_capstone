@@ -13,6 +13,8 @@ function Pros() {
     roleProStyle,
     services,
     allPros,
+    prosLoading,
+    prosError,
     screen,
     isAccueil,
     isServices,
@@ -247,7 +249,11 @@ function Pros() {
         </div>
       </div>
       <div className="k204">
-        {filteredPros.map((p, __i) => (
+        {prosLoading ? (
+<p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Chargement des professionnels…</p>
+) : prosError ? (
+<p style={{gridColumn: "1 / -1", color: "#B91C1C"}}>Impossible de charger les professionnels depuis le serveur.</p>
+) : filteredPros.map((p, __i) => (
 <div key={p.id ?? __i} className="k144">
   <div className="k205">
     <img className="k73" src={img(`pcover-${p.id}`, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />

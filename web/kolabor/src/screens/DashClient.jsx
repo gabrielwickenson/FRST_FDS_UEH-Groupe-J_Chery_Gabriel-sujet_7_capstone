@@ -2,6 +2,7 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function DashClient() {
+  const [tab, setTab] = React.useState("upcoming");
   const {
     calDays,
     isRoleClient,
@@ -93,6 +94,13 @@ function DashClient() {
     navPros,
     pros,
     featured,
+    reservationsClient,
+    reservationsClientLoading,
+    reservationsClientError,
+    clientStats,
+    annulerReservation,
+    laisserAvisSurReservation,
+    me,
   } = useApp();
   return (
     <React.Fragment>
@@ -100,14 +108,14 @@ function DashClient() {
     <aside className="k425">
       <div className="k426">
         <span className="k427">
-          PJ
+          {me.initials}
         </span>
         <div>
           <div className="k23">
-            Peter Joseph
+            {me.nom}
           </div>
           <div className="k428">
-            Pétion-Ville
+            {me.ville}
           </div>
         </div>
       </div>
@@ -119,14 +127,6 @@ function DashClient() {
         <div className="k431">
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#fff"}}></i>
           Mes réservations
-        </div>
-        <div className="k430" onClick={nav.favoris}>
-          <i className="icon fa-solid fa-heart" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Mes favoris
-        </div>
-        <div className="k430" onClick={nav.messages}>
-          <i className="icon fa-solid fa-message" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-          Messagerie
         </div>
         <div className="k430" onClick={nav.factures}>
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
@@ -140,7 +140,7 @@ function DashClient() {
     </aside>
     <div>
       <h1 className="k229">
-        Bonjour, Peter 👋
+        Bonjour, {me.nom.split(" ")[0] || "vous"} 👋
       </h1>
       <p className="k432">
         Voici un aperçu de vos réservations.
@@ -151,7 +151,7 @@ function DashClient() {
             À venir
           </div>
           <div className="k435">
-            2
+            {clientStats.upcoming}
           </div>
         </div>
         <div className="k434">
@@ -159,15 +159,15 @@ function DashClient() {
             Terminées
           </div>
           <div className="k435">
-            8
+            {clientStats.done}
           </div>
         </div>
         <div className="k434">
           <div className="k15">
-            Favoris
+            Réservations
           </div>
           <div className="k435">
-            5
+            {reservationsClient.length}
           </div>
         </div>
         <div className="k434">
@@ -175,7 +175,7 @@ function DashClient() {
             Total dépensé
           </div>
           <div className="k436">
-            3 200
+            {clientStats.total}
             <span className="k437">
               Gdes
             </span>
@@ -183,140 +183,78 @@ function DashClient() {
         </div>
       </div>
       <div className="k438">
-        <button className="k439">
+        <button type="button" className={tab === "upcoming" ? "k439" : "k440"} onClick={() => setTab("upcoming")}>
           À venir
         </button>
-        <button className="k440">
+        <button type="button" className={tab === "encours" ? "k439" : "k440"} onClick={() => setTab("encours")}>
           En cours
         </button>
-        <button className="k441">
+        <button type="button" className={tab === "done" ? "k439" : "k441"} onClick={() => setTab("done")}>
           Terminées
         </button>
       </div>
       <div className="k442">
-        <div className="k443">
+        {reservationsClientLoading ? (
+<p style={{color: "#6B7280"}}>Chargement de vos réservations…</p>
+) : reservationsClientError ? (
+<p style={{color: "#B91C1C"}}>Impossible de charger vos réservations depuis le serveur.</p>
+) : reservationsClient.length === 0 ? (
+<p style={{color: "#6B7280"}}>Vous n'avez pas encore de réservation.</p>
+) : reservationsClient.filter((r) => {
+  if (tab === "encours") return r.statut === "EN_COURS";
+  if (tab === "done") return r.statut === "TERMINEE" || r.statut === "TERMINE";
+  return r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "PAYEE";
+}).length === 0 ? (
+<p style={{color: "#6B7280"}}>Aucune réservation dans cette catégorie.</p>
+) : reservationsClient.filter((r) => {
+  if (tab === "encours") return r.statut === "EN_COURS";
+  if (tab === "done") return r.statut === "TERMINEE" || r.statut === "TERMINE";
+  return r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "PAYEE";
+}).map((r) => {
+  const isDone = r.statut === "TERMINEE" || r.statut === "TERMINE";
+  return (
+<div key={r.key} className="k443">
           <div className="k444">
             <span className="k445"></span>
             <div className="k22">
               <div className="k190">
                 <h3 className="k446">
-                  Réparation de fuite d'eau
+                  {r.titre}
                 </h3>
                 <span className="k447">
-                  Confirmé
+                  {r.statutLabel}
                 </span>
               </div>
               <div className="k448">
-                avec Marc Fontaine · Plombier certifié
+                avec {r.proNom}{r.proJob ? ` · ${r.proJob}` : ""}
               </div>
               <div className="k449">
                 <span className="k450">
                   <i className="icon fa-solid fa-calendar-days" style={{fontSize: "16px", color: "#139356"}}></i>
-                  15 Jan 2026
-                </span>
-                <span className="k450">
-                  <i className="icon fa-solid fa-clock" style={{fontSize: "16px", color: "#139356"}}></i>
-                  14h00 – 16h00
+                  {r.dateHeure}
                 </span>
                 <span className="k450">
                   <i className="icon fa-solid fa-location-dot" style={{fontSize: "16px", color: "#139356"}}></i>
-                  Pétion-Ville
+                  {r.adresse}
                 </span>
               </div>
             </div>
           </div>
           <div className="k451">
-            <button className="k452">
-              Voir les détails
-            </button>
-            <button className="k453" onClick={nav.messages}>
-              Envoyer un message
-            </button>
-            <button className="k454">
-              Annuler
-            </button>
-          </div>
-        </div>
-        <div className="k443">
-          <div className="k444">
-            <span className="k455"></span>
-            <div className="k22">
-              <div className="k190">
-                <h3 className="k446">
-                  Installation électrique
-                </h3>
-                <span className="k456">
-                  En attente
-                </span>
-              </div>
-              <div className="k448">
-                avec Naïka Joseph · Électricienne
-              </div>
-              <div className="k449">
-                <span className="k450">
-                  <i className="icon fa-solid fa-calendar-days" style={{fontSize: "16px", color: "#139356"}}></i>
-                  18 Jan 2026
-                </span>
-                <span className="k450">
-                  <i className="icon fa-solid fa-clock" style={{fontSize: "16px", color: "#139356"}}></i>
-                  10h00 – 12h00
-                </span>
-                <span className="k450">
-                  <i className="icon fa-solid fa-location-dot" style={{fontSize: "16px", color: "#139356"}}></i>
-                  Delmas
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="k451">
-            <button className="k452">
-              Voir les détails
-            </button>
-            <button className="k453" onClick={nav.messages}>
-              Envoyer un message
-            </button>
-            <button className="k454">
-              Annuler
-            </button>
-          </div>
-        </div>
-        <div className="k457">
-          <div className="k444">
-            <span className="k458"></span>
-            <div className="k22">
-              <div className="k190">
-                <h3 className="k446">
-                  Nettoyage complet maison
-                </h3>
-                <span className="k459">
-                  Terminé
-                </span>
-              </div>
-              <div className="k448">
-                avec Roselène Pierre · Aide-ménagère
-              </div>
-              <div className="k449">
-                <span className="k450">
-                  <i className="icon fa-solid fa-calendar-days" style={{fontSize: "16px", color: "#9CA3AF"}}></i>
-                  9 Jan 2026
-                </span>
-                <span className="k450">
-                  <i className="icon fa-solid fa-clock" style={{fontSize: "16px", color: "#9CA3AF"}}></i>
-                  08h00 – 10h00
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="k451">
-            <button className="k460">
+            {isDone ? (
+<button className="k460" onClick={() => laisserAvisSurReservation(r.id)}>
               <i className="icon fa-solid fa-star" style={{fontSize: "15px", color: "#fff"}}></i>
               Laisser un avis
             </button>
-            <button className="k453" onClick={nav.pros}>
-              Réserver à nouveau
+) : (
+<button className="k454" onClick={() => annulerReservation(r.id)}>
+              Annuler
             </button>
+)}
           </div>
         </div>
+);
+})}
       </div>
     </div>
   </div>

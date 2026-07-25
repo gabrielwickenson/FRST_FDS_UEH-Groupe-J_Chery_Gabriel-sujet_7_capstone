@@ -1,7 +1,15 @@
 import React from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
+import { payerReservation } from "../api/reservations.js";
+import { navigateTo } from "../router.jsx";
 
 function Paiement() {
+  const { userId } = useAuth();
+  const [methode, setMethode] = React.useState("CARTE");
+  const [payError, setPayError] = React.useState("");
+
   const {
     calDays,
     isRoleClient,
@@ -93,7 +101,32 @@ function Paiement() {
     navPros,
     pros,
     featured,
+    selectedReservationId,
+    selectedReservationMontant,
   } = useApp();
+
+  const payMutation = useMutation({
+    mutationFn: () => payerReservation(selectedReservationId, methode, userId),
+  });
+
+  async function handlePayer() {
+    setPayError("");
+    if (!selectedReservationId) {
+      setPayError("Aucune réservation en cours. Recommencez la réservation.");
+      return;
+    }
+    if (!userId) {
+      setPayError("Vous devez être connecté pour payer.");
+      return;
+    }
+    try {
+      await payMutation.mutateAsync();
+      navigateTo("confirm");
+    } catch (err) {
+      setPayError(err?.response?.data?.message || "Le paiement a échoué. Réessayez.");
+    }
+  }
+
   return (
     <React.Fragment>
   <div className="k358">
@@ -143,7 +176,7 @@ function Paiement() {
           Vos informations sont chiffrées et sécurisées.
         </p>
         <div className="k399">
-          <label className="k400">
+          <label className={methode === "CARTE" ? "k400" : "k403"} onClick={() => setMethode("CARTE")}>
             <span className="k401"></span>
             <span className="k402">
               CB
@@ -157,7 +190,7 @@ function Paiement() {
               </div>
             </div>
           </label>
-          <label className="k403">
+          <label className={methode === "MONCASH" ? "k400" : "k403"} onClick={() => setMethode("MONCASH")}>
             <span className="k404"></span>
             <span className="k405">
               MON
@@ -211,26 +244,10 @@ function Paiement() {
         <div className="k410">
           <div className="k393">
             <span>
-              Réparation fuite
+              Montant
             </span>
             <span className="k394">
-              250 Gdes
-            </span>
-          </div>
-          <div className="k393">
-            <span>
-              Déplacement
-            </span>
-            <span className="k394">
-              100 Gdes
-            </span>
-          </div>
-          <div className="k393">
-            <span>
-              TVA (20%)
-            </span>
-            <span className="k394">
-              50 Gdes
+              {selectedReservationMontant ? `${selectedReservationMontant} Gdes` : "Sur devis"}
             </span>
           </div>
         </div>
@@ -239,11 +256,14 @@ function Paiement() {
             Total
           </span>
           <span className="k396">
-            400 Gdes
+            {selectedReservationMontant ? `${selectedReservationMontant} Gdes` : "Sur devis"}
           </span>
         </div>
-        <button className="k275" onClick={nav.confirm}>
-          Payer 400 Gdes
+        {payError ? (
+<p style={{color: "#B91C1C", fontSize: 13.5, fontWeight: 600}}>{payError}</p>
+) : null}
+        <button className="k275" onClick={handlePayer} disabled={payMutation.isPending}>
+          {payMutation.isPending ? "Paiement..." : `Payer ${selectedReservationMontant || ""} Gdes`}
         </button>
         <div className="k276">
           <i className="icon fa-solid fa-lock" style={{fontSize: "15px", color: "#9CA3AF"}}></i>

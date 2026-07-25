@@ -2261,6 +2261,12 @@ img {
 .k301:hover {
   border-color: #19355F;
 }
+/* Écrans connexion / inscription : formulaire à gauche, carte à droite */
+.auth-shell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100vh - 72px);
+}
 .k302 {
   display: flex;
   align-items: center;
@@ -2604,6 +2610,14 @@ img {
 }
 .k348:hover {
   background: #0F7A48;
+}
+.k348:disabled {
+  background: #9CA3AF;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.k348:disabled:hover {
+  background: #9CA3AF;
 }
 .k349 {
   margin-top: 22px;
@@ -5855,6 +5869,16 @@ img {
   letter-spacing: -.6px;
   color: #19355F;
 }
+.site-logo {
+  height: 34px;
+  width: auto;
+  display: block;
+}
+.footer-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
 .k790 {
   display: flex;
   align-items: center;
@@ -5907,6 +5931,22 @@ img {
   background: #19355F;
   box-shadow: 0 1px 2px rgba(17,24,39,.08);
 }
+.burger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  border-radius: 8px;
+  color: #19355F;
+  flex-shrink: 0;
+}
+
+.burger-btn:hover {
+  background: #F3F4F6;
+}
+
 .k796:hover {
   background: #0f274a;
 }
@@ -5980,4 +6020,294 @@ img {
 .k807 {
   display: flex;
   gap: 24px;
+}
+
+.app-shell main {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .k785,
+  .k797,
+  .k177,
+  .k241,
+  .k279,
+  .k424,
+  .k2 {
+    max-width: 100%;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .k785 {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 12px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .burger-btn {
+    display: flex;
+  }
+
+  .k790,
+  .k793 {
+    margin-left: 0;
+  }
+
+  .k790 {
+    display: none;
+    flex: 1 1 100%;
+    order: 3;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .k793 {
+    display: none;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .k785.nav-open .k790,
+  .k785.nav-open .k793 {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #E5E7EB;
+  }
+
+  .k785.nav-open .k791 {
+    text-align: center;
+  }
+
+  .k2,
+  .k177,
+  .k241,
+  .k279,
+  .k424,
+  .k798,
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-shell {
+    min-height: auto;
+  }
+
+  .k177,
+  .k241,
+  .k279,
+  .k424 {
+    gap: 24px;
+  }
+
+  .k178,
+  .k267,
+  .k425 {
+    position: static;
+    top: auto;
+    width: 100%;
+  }
+
+  .k8 {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .k9,
+  .k12 {
+    width: 100%;
+  }
+
+  .k11 {
+    width: 100%;
+    height: 1px;
+  }
+
+  .k17,
+  .k280 {
+    height: auto;
+  }
+
+  .k18 {
+    position: relative;
+    min-height: 360px;
+  }
+
+  .k19,
+  .k30 {
+    position: static;
+    width: 100%;
+    margin-top: 16px;
+  }
+
+  .k282 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .k806 {
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+    flex-direction: column;
+  }
+
+  .k807 {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 20px;
+  }
+
+  /* Footer : liens et blocs centrés une fois empilés en colonne unique */
+  .k798 > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .k799 {
+    justify-content: center;
+  }
+
+  .k802 {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .k804 {
+    align-items: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .k785,
+  .k797,
+  .k177,
+  .k241,
+  .k279,
+  .k424,
+  .k2 {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .k785 {
+    gap: 12px;
+  }
+
+  .k789 {
+    font-size: 18px;
+  }
+
+  .k790 {
+    justify-content: flex-start;
+  }
+
+  .k793 {
+    justify-content: stretch;
+  }
+
+  .k794,
+  .k795,
+  .k796,
+  .k791,
+  .k792 {
+    width: 100%;
+    text-align: center;
+  }
+
+  .k2 {
+    padding-top: 48px;
+    padding-bottom: 56px;
+    gap: 28px;
+  }
+
+  .k5 {
+    font-size: clamp(34px, 10vw, 44px);
+  }
+
+  .k7 {
+    font-size: 16px;
+  }
+
+  .k8 {
+    padding: 12px;
+  }
+
+  .k282 {
+    grid-template-columns: 1fr;
+  }
+
+  .k17,
+  .k18,
+  .k280 {
+    min-height: 0;
+  }
+
+  .k18 {
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+
+  .k19,
+  .k30 {
+    box-sizing: border-box;
+  }
+
+  .k797 {
+    padding-top: 40px;
+  }
+
+  /* ---- Une seule colonne par ligne en mobile pour toutes les grilles de contenu ---- */
+  .k34,
+  .k43,
+  .k63,
+  .k70,
+  .k82,
+  .k99,
+  .k143,
+  .k204,
+  .k254,
+  .k332,
+  .k368,
+  .k380,
+  .k433,
+  .k462,
+  .k503,
+  .k531,
+  .k535,
+  .k576,
+  .k583,
+  .k598,
+  .k614,
+  .k640,
+  .k642,
+  .k664,
+  .k680,
+  .k720,
+  .k769 {
+    grid-template-columns: 1fr;
+  }
+
+  /* ---- Tableaux (factures, transactions, utilisateurs admin) : une ligne = une carte empilée ---- */
+  .k703,
+  .k729,
+  .k780 {
+    display: none;
+  }
+
+  .k704,
+  .k730,
+  .k781 {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 14px 16px;
+  }
 }

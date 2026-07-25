@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.context.SecurityContextHolder;
 import com.capstone.serviceplatform.dto.AvailabilityRequest;
 import com.capstone.serviceplatform.dto.DailyRevenue;
+import com.capstone.serviceplatform.dto.UpdateUserRequest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -295,6 +296,61 @@ public class PrestataireController {
                 "message", "Disponibilité mise à jour",
                 "disponible", request.isDisponible()
         ));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Mettre à jour le profil du prestataire connecté (tarif horaire, compétences, zone, téléphone, nom)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Profil mis à jour"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (vous ne pouvez modifier que votre propre profil)"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> updateProfile(
+            @PathVariable Long id,
+            @RequestBody UpdateUserRequest request) {
+
+        // 1. Vérifier l'authentification
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur modifie son propre profil
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à modifier le profil d'un autre prestataire"));
+        }
+
+        // 3. Récupérer le prestataire
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+
+        // 4. Mettre à jour uniquement les champs fournis
+        if (request.getNom() != null) {
+            prestataire.setNom(request.getNom());
+        }
+        if (request.getTelephone() != null) {
+            prestataire.setTelephone(request.getTelephone());
+        }
+        if (request.getCompetences() != null) {
+            prestataire.setCompetences(request.getCompetences());
+        }
+        if (request.getTarifHoraire() != null) {
+            prestataire.setTarifHoraire(BigDecimal.valueOf(request.getTarifHoraire()));
+        }
+        if (request.getZoneIntervention() != null) {
+            prestataire.setZoneIntervention(request.getZoneIntervention());
+        }
+
+        Prestataire updated = prestataireRepository.save(prestataire);
+        updated.setMotDePasse(null);
+        return ResponseEntity.ok(updated);
     }
 
     @GetMapping("/{id}/revenue/week")
