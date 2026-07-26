@@ -63,6 +63,37 @@ import com.capstone.serviceplatform.app.ui.theme.*
 import com.kolabor.app.R
 import com.kolabor.app.ui.theme.*
 import java.math.BigDecimal
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Lock
+
+
+@Composable
+private fun MenuAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    labelColor: Color = NavyPrimary,
+    iconColor: Color = NavyPrimary
+) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = labelColor
+            )
+        },
+        onClick = onClick,
+        leadingIcon = {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+        },
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +102,7 @@ fun ClientDashboard(
     clientId: Long,
     onNavigateToBook: (Long) -> Unit,
     userName: String = "Client",
+    userPhoto: String? = null,   // ✅ Nouveau paramètre
     showPrestataireDetail: MutableState<Boolean>,
     selectedPrestataire: MutableState<Prestataire?>,
     currentTab: MutableState<Int>,
@@ -109,76 +141,55 @@ fun ClientDashboard(
         topBar = {
             TopAppBar(
                 title = {
-                    Image(
-                        painter = painterResource(id = R.drawable.logo_kolabor_svg),
-                        contentDescription = "Logo Kolabor",
-                        modifier = Modifier.height(30.dp).width(110.dp),
-                        contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(Color.White)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.logo_kolabor_svg),
+                            contentDescription = "Logo Kolabor",
+                            modifier = Modifier.height(26.dp).width(96.dp),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = ColorFilter.tint(Color.White)
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
-
-                    // ✅ NOUVEAU : Menu déroulant (trois petits points)
-                    var showMenu by remember { mutableStateOf(false) }
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                        modifier = Modifier
-                            .background(Color.White)
-                            .clip(RoundedCornerShape(12.dp))
+                    // 🔔 Cloche de notifications — séparée du menu, avec badge
+                    var unreadNotifications by remember { mutableStateOf(0) } // relie à ton vrai compteur
+                    IconButton(
+                        onClick = {
+                            Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show()
+                        }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Services", color = NavyPrimary) },
-                            onClick = {
-                                showMenu = false
-                                showServiceList = true
-                            },
-                            leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = NavyPrimary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Notifications", color = NavyPrimary) },
-                            onClick = {
-                                showMenu = false
-                                // Ouvrir les notifications (vous pouvez utiliser le bottom sheet existant)
-                                Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null, tint = NavyPrimary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Aide", color = NavyPrimary) },
-                            onClick = {
-                                showMenu = false
-                                showHelp = true
-                            },
-                            leadingIcon = { Icon(Icons.Default.Help, contentDescription = null, tint = NavyPrimary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Confidentialité", color = NavyPrimary) },
-                            onClick = {
-                                showMenu = false
-                                Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = NavyPrimary) }
-                        )
-                        // Option déconnexion (facultatif, car déjà présente en icône)
-                        DropdownMenuItem(
-                            text = { Text("Déconnexion", color = ErrorColor) },
-                            onClick = {
-                                showMenu = false
-                                onLogout()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null, tint = ErrorColor) }
-                        )
+                        BadgedBox(
+                            badge = {
+                                if (unreadNotifications > 0) {
+                                    Badge(containerColor = ErrorColor, contentColor = Color.White) {
+                                        Text(
+                                            text = if (unreadNotifications > 9) "9+" else unreadNotifications.toString(),
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
-                    // Icône profil (déjà présente)
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // 👤 Avatar avec anneau subtil — cliquable vers l'onglet Profil
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                            .padding(2.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.15f))
                             .clickable {
@@ -187,14 +198,96 @@ fun ClientDashboard(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = userName.take(1).uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleSmall
-                        )
+                        if (!userPhoto.isNullOrBlank()) {
+                            val fullUrl = normalizePhotoUrl(userPhoto)
+                            AsyncImage(
+                                model = fullUrl,
+                                contentDescription = "Photo de profil",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = userName.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(space12))
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // ⋮ Menu déroulant — sectionné, avec séparateurs et espacements soignés
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White)
+                                .width(220.dp)
+                        ) {
+                            // En-tête du menu : nom + rôle rapide
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text(
+                                    text = userName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = NavyPrimary,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Compte client",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray500
+                                )
+                            }
+                            HorizontalDivider(color = Gray100, thickness = 1.dp)
+
+                            MenuAction(
+                                icon = Icons.AutoMirrored.Filled.List,
+                                label = "Services",
+                                onClick = {
+                                    showMenu = false
+                                    showServiceList = true
+                                }
+                            )
+                            MenuAction(
+                                icon = Icons.Filled.HelpOutline,
+                                label = "Aide",
+                                onClick = {
+                                    showMenu = false
+                                    showHelp = true
+                                }
+                            )
+                            MenuAction(
+                                icon = Icons.Filled.Lock,
+                                label = "Confidentialité",
+                                onClick = {
+                                    showMenu = false
+                                    Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+
+                            HorizontalDivider(color = Gray100, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                            MenuAction(
+                                icon = Icons.AutoMirrored.Filled.Logout,
+                                label = "Déconnexion",
+                                labelColor = ErrorColor,
+                                iconColor = ErrorColor,
+                                onClick = {
+                                    showMenu = false
+                                    onLogout()
+                                }
+                            )
+                        }
+                    }
                 }
             )
         },

@@ -125,6 +125,7 @@ fun KolaborApp() {
     val showPayment = remember { mutableStateOf(false) }
     val selectedReservationForPayment = remember { mutableStateOf<Reservation?>(null) }
     val selectedPaymentMode = remember { mutableStateOf<String?>(null) }
+    val userPhoto = remember { mutableStateOf<String?>(null) }
 
     // Charger la session au démarrage
     LaunchedEffect(Unit) {
@@ -136,6 +137,8 @@ fun KolaborApp() {
                 showOnboarding.value = false
                 userId.value = tokenManager.getUserId() ?: 0L
                 userName.value = tokenManager.getUserName() ?: "Utilisateur"
+                // ✅ Récupération de la photo
+                userPhoto.value = tokenManager.getUserPhoto()
             }
         }
     }
@@ -208,7 +211,8 @@ fun KolaborApp() {
                                             selectedReservationForPayment.value = reservation
                                             showPayment.value = true
                                         },
-                                        userName = userName.value ?: "Client"
+                                        userName = userName.value ?: "Client",
+                                        userPhoto = userPhoto.value   // ✅ Passer la photo
                                     )
                                 }
                             }
@@ -225,7 +229,8 @@ fun KolaborApp() {
                                     }
                                 },
                                 userId = userId.value ?: 0L,
-                                userName = userName.value ?: "Prestataire"
+                                userName = userName.value ?: "Prestataire",
+                                userPhoto = userPhoto.value
                             )
                         }
                         else -> {

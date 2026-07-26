@@ -86,8 +86,14 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             val uploadResult = userRepository.uploadPhoto(currentUserId, croppedUri)
                             if (uploadResult != null) {
                                 val refreshedUser = userRepository.getUserById(currentUserId)
-                                if (refreshedUser != null) user = refreshedUser
-                                Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                                if (refreshedUser != null) {
+                                    user = refreshedUser
+                                    // ✅ Mise à jour de la photo persistée
+                                    val newPhotoUrl = normalizePhotoUrl(refreshedUser.photo)
+                                    persistedPhotoUrl = newPhotoUrl
+                                    tokenManager.saveUserPhoto(newPhotoUrl)
+                                    Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                                }
                             } else {
                                 Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
                             }
