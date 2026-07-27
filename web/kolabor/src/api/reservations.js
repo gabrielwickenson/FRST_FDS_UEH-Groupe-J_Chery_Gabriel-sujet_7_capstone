@@ -55,9 +55,11 @@ export function getMesReservationsPrestataire() {
   return api.get("/reservations/me/prestataire").then((r) => r.data);
 }
 
-// GET /api/reservations/moi/client — Réservations du client connecté
+// GET /api/reservations/me/client — Réservations du client connecté
+// (le backend expose /me/client, pas /moi/client — l'ancien chemin causait
+// un 404 systématique sur "Mes réservations" côté client).
 export function getMesReservationsClient() {
-  return api.get("/reservations/moi/client").then((r) => r.data);
+  return api.get("/reservations/me/client").then((r) => r.data);
 }
 
 // GET /api/reservations/client/{clientId} — Historique des réservations d'un client
