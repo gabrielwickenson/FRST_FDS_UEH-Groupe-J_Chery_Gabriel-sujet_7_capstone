@@ -66,6 +66,17 @@ public class ReservationController {
     public ResponseEntity<?> creerReservation(@RequestBody @Valid ReservationRequest request) {
         Client client = clientRepository.findById(request.getClientId()).orElse(null);
         if (client == null) {
+            // L'utilisateur peut très bien exister en tant que compte
+            // PRESTATAIRE (pas de ligne dans `client`). N'importe quel
+            // utilisateur connecté doit pouvoir réserver un service auprès
+            // d'un autre prestataire en tant que client — on provisionne
+            // donc la ligne manquante à la volée plutôt que de refuser.
+            if (userRepository.existsById(request.getClientId())) {
+                clientRepository.provisionClientRow(request.getClientId());
+                client = clientRepository.findById(request.getClientId()).orElse(null);
+            }
+        }
+        if (client == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Client non trouvé"));
         }
@@ -256,13 +267,9 @@ public class ReservationController {
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur est bien un CLIENT
-        if (currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès réservé aux clients"));
-        }
-
-        // 3. Vérifier que l'ID dans l'URL correspond à l'ID du client authentifié
+        // 2. Le rôle du compte n'est plus déterminant : un compte PRESTATAIRE
+        // peut aussi être client d'une autre réservation. Seule l'identité
+        // (clientId == utilisateur connecté) est vérifiée.
         if (!currentUser.getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les réservations d'un autre client"));
@@ -288,10 +295,10 @@ public class ReservationController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Utilisateur non trouvé"));
         }
-        if (currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès réservé aux clients"));
-        }
+        // N'importe quel compte connecté — CLIENT ou PRESTATAIRE — peut avoir
+        // réservé des services en tant que client (un pro peut aussi être
+        // client d'un autre pro). On ne restreint donc plus cet endpoint au
+        // rôle CLIENT.
 
         List<Reservation> reservations = reservationRepository.findByClientId(currentUser.getId());
         reservations.forEach(r -> {
@@ -395,13 +402,9 @@ public class ReservationController {
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur est bien un CLIENT
-        if (currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès réservé aux clients"));
-        }
-
-        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        // 2. Le rôle du compte n'est plus déterminant : un compte PRESTATAIRE
+        // peut aussi être client d'une autre réservation. Seule l'identité
+        // (clientId == utilisateur connecté) est vérifiée.
         if (!currentUser.getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à laisser un avis pour un autre client"));
@@ -477,13 +480,9 @@ public class ReservationController {
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur est bien un CLIENT
-        if (currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès réservé aux clients"));
-        }
-
-        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        // 2. Le rôle du compte n'est plus déterminant : un compte PRESTATAIRE
+        // peut aussi être client d'une autre réservation. Seule l'identité
+        // (clientId == utilisateur connecté) est vérifiée.
         if (!currentUser.getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à ouvrir un litige pour un autre client"));
@@ -615,13 +614,9 @@ public class ReservationController {
                     .body(Map.of("error", "Utilisateur non authentifié"));
         }
 
-        // 2. Vérifier que l'utilisateur est bien un CLIENT
-        if (currentUser.getRole() != Role.CLIENT) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Accès réservé aux clients"));
-        }
-
-        // 3. Vérifier que l'ID du client fourni correspond à l'utilisateur connecté
+        // 2. Le rôle du compte n'est plus déterminant : un compte PRESTATAIRE
+        // peut aussi être client d'une autre réservation. Seule l'identité
+        // (clientId == utilisateur connecté) est vérifiée.
         if (!currentUser.getId().equals(clientId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Vous n'êtes pas autorisé à effectuer un paiement pour un autre client"));
