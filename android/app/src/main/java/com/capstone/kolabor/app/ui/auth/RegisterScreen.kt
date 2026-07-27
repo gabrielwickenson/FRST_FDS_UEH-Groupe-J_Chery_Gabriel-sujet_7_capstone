@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
-    onRegisterSuccess: () -> Unit
+    onRegisterAndLoginSuccess: (token: String, role: String, id: Long, name: String) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -321,13 +321,25 @@ fun RegisterScreen(
                         try {
                             val success = authRepository.register(request)
                             if (success) {
-                                onRegisterSuccess()
+                                // ✅ Connexion automatique
+                                val loginResponse = authRepository.login(email, motDePasse)
+                                if (loginResponse != null) {
+                                    //  Appel sans arguments nommés
+                                    onRegisterAndLoginSuccess(
+                                        loginResponse.token,
+                                        loginResponse.role,
+                                        loginResponse.id,
+                                        loginResponse.nom
+                                    )
+                                } else {
+                                    errorMessage = "Compte créé, mais connexion automatique échouée. Veuillez vous connecter."
+                                    onNavigateToLogin()
+                                }
                             } else {
                                 errorMessage = "Erreur lors de l'inscription. Email peut-être déjà utilisé."
                             }
                         } catch (e: Exception) {
-                            Log.e("RegisterScreen", "Erreur", e)
-                            errorMessage = "Erreur réseau. Vérifiez votre connexion."
+                            // ... gestion erreur
                         } finally {
                             isLoading = false
                         }

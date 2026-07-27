@@ -68,7 +68,11 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lock
-
+import com.capstone.kolabor.app.utils.LocalNotificationManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import com.capstone.kolabor.app.ui.privacy.PrivacyScreen
 
 @Composable
 private fun MenuAction(
@@ -126,6 +130,11 @@ fun ClientDashboard(
     var bookingPromptService by remember { mutableStateOf<Service?>(null) }
     var showHelp by remember { mutableStateOf(false) }
 
+    val notificationManager = LocalNotificationManager
+    val notifications by notificationManager.notifications.collectAsState()
+    var showNotificationsSheet by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
+
     LaunchedEffect(currentTab.value) {
         selectedTab = currentTab.value
     }
@@ -153,19 +162,17 @@ fun ClientDashboard(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyPrimary),
                 actions = {
-                    // 🔔 Cloche de notifications — séparée du menu, avec badge
-                    var unreadNotifications by remember { mutableStateOf(0) } // relie à ton vrai compteur
+                    // 🔔 Cloche de notifications — ouvre le bottom sheet des notifications
+                    val unreadCount = notifications.count { !it.isRead }
                     IconButton(
-                        onClick = {
-                            Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show()
-                        }
+                        onClick = { showNotificationsSheet = true }
                     ) {
                         BadgedBox(
                             badge = {
-                                if (unreadNotifications > 0) {
+                                if (unreadCount > 0) {
                                     Badge(containerColor = ErrorColor, contentColor = Color.White) {
                                         Text(
-                                            text = if (unreadNotifications > 9) "9+" else unreadNotifications.toString(),
+                                            text = if (unreadCount > 9) "9+" else unreadCount.toString(),
                                             style = MaterialTheme.typography.labelSmall
                                         )
                                     }
@@ -270,7 +277,7 @@ fun ClientDashboard(
                                 label = "Confidentialité",
                                 onClick = {
                                     showMenu = false
-                                    Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
+                                    showPrivacy = true   // ✅ Ouvre PrivacyScreen
                                 }
                             )
 
@@ -366,8 +373,13 @@ fun ClientDashboard(
                 )
             } else if (showHelp) {
                 HelpScreen(
-                   onBack = { showHelp = false }
+                    onBack = { showHelp = false }
                 )
+            } else if (showPrivacy) {
+                    PrivacyScreen(
+                        onBack = { showPrivacy = false }
+                    )
+
             } else {
                 // ─── 2. CONTENU PRINCIPAL ───
                 when (selectedTab) {
@@ -1091,7 +1103,19 @@ fun ClientDashboard(
                     }
 
                     3 -> {
-                        ProfileScreen(onLogout = onLogout)
+                        ProfileScreen(
+                            onLogout = onLogout,
+                            onNavigateToReservations = {
+                                selectedTab = 2
+                                onTabChanged(2)
+                            },
+                            onNavigateToNotifications = {
+                                showNotificationsSheet = true   // ✅ Ouvre le BottomSheet
+                            },
+                            onNavigateToPrivacy = {
+                                showPrivacy = true   // ✅ Ouvre PrivacyScreen
+                            }
+                        )
                     }
                 }
             }
@@ -1139,6 +1163,113 @@ fun ClientDashboard(
                         }
                     }
                 )
+            }
+
+            if (showNotificationsSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = {
+                        showNotificationsSheet = false
+                        notificationManager.markAllAsRead()
+                    },
+                    containerColor = Color.White,
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    dragHandle = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(40.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Gray300)
+                            )
+                        }
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Notifications",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = NavyPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (notifications.isNotEmpty()) {
+                                TextButton(onClick = { notificationManager.clearAll() }) {
+                                    Text("Tout effacer", color = ErrorColor)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (notifications.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Notifications,
+                                        contentDescription = null,
+                                        tint = Gray300,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Aucune notification", color = Gray500)
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.height(400.dp)
+                            ) {
+                                items(notifications) { notification ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (notification.isRead) Color.White else Gray50
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text(
+                                                text = notification.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = NavyPrimary,
+                                                fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = notification.body,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Gray600
+                                            )
+                                            Text(
+                                                text = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                                                    .format(Date(notification.timestamp)),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Gray400
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.capstone.kolabor.app.ui.privacy.PrivacyScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +90,7 @@ fun PrestataireDashboard(
     var filterForExplorer by remember { mutableStateOf<String?>(null) }
     var bookingPromptService by remember { mutableStateOf<Service?>(null) }
     var showHelp by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
 
     // ✅ Résout l'ID prestataire : priorité au paramètre reçu, fallback sur tokenManager
     // uniquement si le paramètre n'a pas été fourni (0L par défaut / non identifié).
@@ -301,7 +303,7 @@ fun PrestataireDashboard(
                                 label = "Confidentialité",
                                 onClick = {
                                     showMenu = false
-                                    Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show()
+                                    showPrivacy = true
                                 }
                             )
 
@@ -371,6 +373,10 @@ fun PrestataireDashboard(
                 HelpScreen(
                     onBack = { showHelp = false }
                 )
+            } else if (showPrivacy) {
+            PrivacyScreen(
+                onBack = { showPrivacy = false }
+            )
             } else {
 
                 when (selectedTab) {
@@ -845,7 +851,20 @@ fun PrestataireDashboard(
                         }
                     }
 
-                    3 -> ProfileScreen(onLogout = onLogout)
+                    3 -> {
+                        ProfileScreen(
+                            onLogout = onLogout,
+                            onNavigateToReservations = {
+                                selectedTab = 1   // Onglet Réservations
+                            },
+                            onNavigateToNotifications = {
+                                showNotificationsSheet = true   // ✅ Ouvre le BottomSheet
+                            },
+                            onNavigateToPrivacy = {
+                                showPrivacy = true   // ✅ Ouvre PrivacyScreen
+                            }
+                        )
+                    }
                 }
             }
 

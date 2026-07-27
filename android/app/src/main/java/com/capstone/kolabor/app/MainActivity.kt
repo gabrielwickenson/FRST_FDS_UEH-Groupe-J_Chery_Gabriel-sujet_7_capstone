@@ -272,9 +272,20 @@ fun KolaborApp() {
                             showRegister.value = false
                             showLogin.value = true
                         },
-                        onRegisterSuccess = {
+                        onRegisterAndLoginSuccess = { token, role, id, name ->
+                            // ✅ Connexion automatique
+                            userRole.value = role
+                            isLoggedIn.value = true
+                            userId.value = id
+                            userName.value = name
                             showRegister.value = false
-                            showLogin.value = true
+
+                            coroutineScope.launch {
+                                tokenManager.saveToken(token)
+                                tokenManager.saveUserId(id)
+                                tokenManager.saveUserRole(role)
+                                tokenManager.saveUserName(name)
+                            }
                         }
                     )
                 }
