@@ -94,6 +94,7 @@ function Accueil() {
     navPros,
     pros,
     featured,
+    goToServiceCategory,
   } = useApp();
   return (
     <React.Fragment>
@@ -114,21 +115,6 @@ function Accueil() {
         <p className="k7">
           Plomberie, électricité, ménage, jardinage… Réservez en quelques clics un professionnel qualifié et payez en toute sécurité.
         </p>
-        <div className="k8">
-          <div className="k9">
-            <i className="icon fa-solid fa-magnifying-glass" style={{fontSize: "20px", color: "#139356"}}></i>
-            <input className="k10" value={heroSearchVal} onChange={onHeroSearch} onKeyDown={onHeroKey} placeholder="Quel service cherchez-vous ?" />
-          </div>
-          <div className="k11"></div>
-          <div className="k12">
-            <i className="icon fa-solid fa-location-dot" style={{fontSize: "20px", color: "#9CA3AF"}}></i>
-            <input className="k10" value={heroCityVal} onChange={onHeroCity} onKeyDown={onHeroKey} placeholder="Ville ou code postal" />
-          </div>
-          <button className="k13" onClick={nav.heroSearch}>
-            <i className="icon fa-solid fa-magnifying-glass" style={{fontSize: "18px", color: "#fff"}}></i>
-            Rechercher
-          </button>
-        </div>
         <div className="k14">
           <span className="k15">
             Populaire :
@@ -244,7 +230,7 @@ function Accueil() {
       </p>
     </div>
     <div className="k43">
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Ménage")}>
         <span className="k45">
           <i className="icon fa-solid fa-house" style={{fontSize: "24px", color: "#7C3AED"}}></i>
         </span>
@@ -255,7 +241,7 @@ function Accueil() {
           412 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Lessive & Repassage")}>
         <span className="k48">
           <i className="icon fa-solid fa-shirt" style={{fontSize: "24px", color: "#0EA5E9"}}></i>
         </span>
@@ -266,7 +252,7 @@ function Accueil() {
           87 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Plomberie")}>
         <span className="k49">
           <i className="icon fa-solid fa-location-dot" style={{fontSize: "24px", color: "#19355F"}}></i>
         </span>
@@ -277,7 +263,7 @@ function Accueil() {
           340 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Électricité")}>
         <span className="k50">
           <i className="icon fa-solid fa-bolt" style={{fontSize: "24px", color: "#F59E0B"}}></i>
         </span>
@@ -288,7 +274,7 @@ function Accueil() {
           285 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Peinture")}>
         <span className="k51">
           <i className="icon fa-solid fa-paint-roller" style={{fontSize: "24px", color: "#EC4899"}}></i>
         </span>
@@ -299,7 +285,7 @@ function Accueil() {
           198 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Jardinage")}>
         <span className="k52">
           <i className="icon fa-solid fa-leaf" style={{fontSize: "24px", color: "#139356"}}></i>
         </span>
@@ -310,7 +296,7 @@ function Accueil() {
           156 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Menuiserie")}>
         <span className="k50">
           <i className="icon fa-solid fa-hammer" style={{fontSize: "24px", color: "#92400E"}}></i>
         </span>
@@ -321,7 +307,7 @@ function Accueil() {
           93 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Maçonnerie")}>
         <span className="k53">
           <i className="icon fa-solid fa-trowel" style={{fontSize: "24px", color: "#6B7280"}}></i>
         </span>
@@ -332,7 +318,7 @@ function Accueil() {
           71 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Climatisation")}>
         <span className="k49">
           <i className="icon fa-solid fa-wind" style={{fontSize: "24px", color: "#2563EB"}}></i>
         </span>
@@ -343,7 +329,7 @@ function Accueil() {
           124 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Débarras & Déchets")}>
         <span className="k54">
           <i className="icon fa-solid fa-trash" style={{fontSize: "24px", color: "#65A30D"}}></i>
         </span>
@@ -354,7 +340,7 @@ function Accueil() {
           58 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Déménagement")}>
         <span className="k52">
           <i className="icon fa-solid fa-truck" style={{fontSize: "24px", color: "#0F7A48"}}></i>
         </span>
@@ -365,7 +351,7 @@ function Accueil() {
           64 pros
         </div>
       </button>
-      <button className="k44" onClick={nav.services}>
+      <button className="k44" onClick={() => goToServiceCategory("Informatique")}>
         <span className="k55">
           <i className="icon fa-solid fa-desktop" style={{fontSize: "24px", color: "#4F46E5"}}></i>
         </span>

@@ -1,8 +1,14 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
+import { useAuth } from "../AuthContext.jsx";
 import { img } from "../images.js";
 
 function Profil() {
+  const { isAuthenticated } = useAuth();
+  const [avisNote, setAvisNote] = React.useState(0);
+  const [avisHover, setAvisHover] = React.useState(0);
+  const [avisCommentaire, setAvisCommentaire] = React.useState("");
+  const [avisSent, setAvisSent] = React.useState(false);
   const {
     calDays,
     isRoleClient,
@@ -97,11 +103,23 @@ function Profil() {
     navPros,
     pros,
     featured,
+    selectedProReviewableReservation,
+    laisserAvisSurProfil,
+    laisserAvisMutation,
   } = useApp();
   const pro = selectedPro || {};
   const proName = pro.name || "Prestataire";
   const proReviews = selectedProStats?.nombrePrestations ?? pro.reviews ?? 0;
   const proRating = selectedProStats?.moyenneNotes ?? pro.rating ?? "—";
+
+  function handleSubmitAvis() {
+    if (!avisNote) return;
+    laisserAvisSurProfil(avisNote, avisCommentaire.trim());
+    setAvisSent(true);
+    setAvisNote(0);
+    setAvisCommentaire("");
+  }
+
   return (
     <React.Fragment>
   <div className="k222">
@@ -292,20 +310,61 @@ function Profil() {
             </div>
 ))}
           </div>
+          <div style={{marginTop: 20, paddingTop: 20, borderTop: "1px solid #E5E7EB"}}>
+            {avisSent ? (
+              <p style={{color: "#139356", fontSize: 14, fontWeight: 600}}>
+                Merci, votre avis a été publié.
+              </p>
+            ) : selectedProReviewableReservation ? (
+              <React.Fragment>
+                <div style={{fontSize: 14, fontWeight: 700, color: "#19355F", marginBottom: 8}}>
+                  Laisser un avis sur ce professionnel
+                </div>
+                <div style={{display: "flex", gap: 6, marginBottom: 10}}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <i
+                      key={n}
+                      className={`icon fa-solid fa-star`}
+                      onMouseEnter={() => setAvisHover(n)}
+                      onMouseLeave={() => setAvisHover(0)}
+                      onClick={() => setAvisNote(n)}
+                      style={{
+                        fontSize: "22px",
+                        cursor: "pointer",
+                        color: (avisHover || avisNote) >= n ? "#F59E0B" : "#D1D5DB",
+                      }}
+                    ></i>
+                  ))}
+                </div>
+                <textarea
+                  className="k386"
+                  placeholder="Votre commentaire (optionnel)"
+                  value={avisCommentaire}
+                  onChange={(e) => setAvisCommentaire(e.target.value)}
+                  style={{width: "100%", marginBottom: 10}}
+                ></textarea>
+                <button
+                  type="button"
+                  className="k253"
+                  disabled={!avisNote || laisserAvisMutation.isPending}
+                  onClick={handleSubmitAvis}
+                >
+                  {laisserAvisMutation.isPending ? "Envoi..." : "Publier l'avis"}
+                </button>
+              </React.Fragment>
+            ) : isAuthenticated ? (
+              <p style={{color: "#9CA3AF", fontSize: 13}}>
+                Vous pourrez laisser un avis une fois qu'une réservation avec ce professionnel sera terminée.
+              </p>
+            ) : (
+              <p style={{color: "#9CA3AF", fontSize: 13}}>
+                Connectez-vous pour laisser un avis après une réservation terminée.
+              </p>
+            )}
+          </div>
         </div>
       </div>
       <aside className="k267">
-        <div className="k268">
-          <span className="k269">
-            {pro.price || "—"}
-          </span>
-          <span className="k270">
-            Gdes
-          </span>
-          <span className="k271">
-            / heure
-          </span>
-        </div>
         <div className="k272">
           <div>
             <div className="k273">

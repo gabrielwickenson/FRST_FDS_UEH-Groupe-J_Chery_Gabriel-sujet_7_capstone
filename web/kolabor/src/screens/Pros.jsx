@@ -178,14 +178,6 @@ function Pros() {
         </div>
       </div>
       <div className="k184">
-        <div className="k188">
-          <span className="k189">
-            Disponible maintenant
-          </span>
-          <span onClick={toggleAvail} style={availTrackStyle}>
-            <span style={availKnobStyle}></span>
-          </span>
-        </div>
         <div className="k190">
           <span className="k189">
             Vérifié uniquement

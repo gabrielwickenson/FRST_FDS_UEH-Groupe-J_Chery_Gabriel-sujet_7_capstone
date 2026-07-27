@@ -258,6 +258,15 @@ function AppProvider({ children }) {
     go("catalogue");
   }
 
+  // Utilisé par la grille "Explorez par catégorie" de l'accueil : clique sur
+  // une catégorie précise doit amener exactement aux services de cette
+  // catégorie sur /services (auparavant tous les boutons pointaient vers
+  // /services sans jamais préciser la catégorie).
+  function goToServiceCategory(name) {
+    setCatFilterState(name);
+    go("services");
+  }
+
   function doHeroSearch() {
     const q = (heroSearch || "").trim();
     const c = (heroCity || "").trim();
@@ -350,7 +359,9 @@ function AppProvider({ children }) {
     };
   }), [rawPros]);
 
-  const pros = React.useMemo(() => allPros.slice(0, 4), [allPros]);
+  // Un pro non disponible ne doit apparaître dans aucune liste menant à une
+  // réservation, y compris les "Professionnels en vedette" de l'accueil.
+  const pros = React.useMemo(() => allPros.filter((p) => p.available).slice(0, 4), [allPros]);
   const featured = pros;
   const prosLoading = prestatairesQuery.isLoading;
   const prosError = prestatairesQuery.isError;
@@ -406,11 +417,13 @@ function AppProvider({ children }) {
   const selectedProStats = selectedProStatsQuery.data || null;
   const selectedProAvis = toArray(selectedProAvisQuery.data);
 
-  // ---- GET /api/reservations/moi/client — historique du client connecté ----
+  // ---- GET /api/reservations/me/client — réservations où l'utilisateur
+  // connecté est le client, quel que soit son rôle de compte (un compte
+  // PRESTATAIRE peut aussi réserver un service en tant que client) ----
   const reservationsClientQuery = useQuery({
-    queryKey: ["reservations", "moi", "client"],
+    queryKey: ["reservations", "me", "client"],
     queryFn: reservationsApi.getMesReservationsClient,
-    enabled: isAuthenticated && isClient,
+    enabled: isAuthenticated,
   });
 
   function normalizeReservation(r, i) {
@@ -423,6 +436,7 @@ function AppProvider({ children }) {
       id,
       raw: r,
       titre: field(service, "nom", "name") || "Service",
+      prestataireId: field(prestataire, "identifiant", "id"),
       proNom: field(prestataire, "nom", "name") || "Prestataire",
       proJob: field(prestataire, "compétences", "competences") || "",
       clientNom: field(client, "nom", "name") || "Client",
@@ -461,8 +475,38 @@ function AppProvider({ children }) {
 
   const laisserAvisMutation = useMutation({
     mutationFn: ({ id, note, commentaire, clientId }) => reservationsApi.laisserAvis(id, { note, commentaire }, clientId),
-    onSuccess: () => reservationsClientQuery.refetch(),
+    onSuccess: () => {
+      reservationsClientQuery.refetch();
+      // Rafraîchit aussi les avis/statistiques du profil affiché, pour que
+      // l'avis qu'on vient de laisser depuis la page Profil apparaisse tout
+      // de suite sans recharger la page.
+      selectedProAvisQuery.refetch();
+      selectedProStatsQuery.refetch();
+    },
   });
+
+  // Un utilisateur ne peut laisser un avis sur un pro que s'il a bien une
+  // réservation TERMINEE avec lui (contrainte imposée par le backend) —
+  // on retrouve donc la réservation éligible la plus récente pour le pro
+  // actuellement affiché sur la page Profil, quel que soit le rôle du
+  // compte connecté (client ou pro agissant comme client).
+  const selectedProReviewableReservation = React.useMemo(() => {
+    const candidates = reservationsClient.filter((r) => (
+      String(r.prestataireId) === String(selectedProId) && r.statut === "TERMINEE"
+    ));
+    if (candidates.length === 0) return null;
+    return candidates[candidates.length - 1];
+  }, [reservationsClient, selectedProId]);
+
+  function laisserAvisSurProfil(note, commentaire) {
+    if (!selectedProReviewableReservation) return;
+    laisserAvisMutation.mutate({
+      id: selectedProReviewableReservation.id,
+      note,
+      commentaire: commentaire || "",
+      clientId: authUserId,
+    });
+  }
 
   // NB: côté backend, PUT /reservations/{id}/statut est réservé aux PRESTATAIRES
   // (vérification explicite du rôle + de l'ID prestataire). Un client ne peut donc
@@ -603,11 +647,13 @@ function AppProvider({ children }) {
       if (city && !normalize(p.city).includes(city)) return false;
       if (cats.length && !cats.includes(p.cat)) return false;
       if (rmin && p.ratingNum < rmin) return false;
-      if (filterAvail && !p.available) return false;
+      // Un professionnel non disponible ne doit jamais apparaître dans la
+      // liste de réservation — ce n'est plus un filtre optionnel.
+      if (!p.available) return false;
       if (filterVerified && !p.verified) return false;
       return true;
     });
-  }, [allPros, appliedQ, appliedCity, filterCats, filterRating, filterAvail, filterVerified]);
+  }, [allPros, appliedQ, appliedCity, filterCats, filterRating, filterVerified]);
 
   const prosHeading = React.useMemo(() => {
     const q = (appliedQ || "").trim(), city = (appliedCity || "").trim();
@@ -771,6 +817,9 @@ function AppProvider({ children }) {
     clientStats,
     annulerReservation,
     laisserAvisSurReservation,
+    selectedProReviewableReservation,
+    laisserAvisSurProfil,
+    laisserAvisMutation,
     reservationsPro,
     reservationsProLoading: agendaProQuery.isLoading,
     reservationsProError: agendaProQuery.isError,
@@ -817,7 +866,7 @@ function AppProvider({ children }) {
     toggleAvail: () => setFilterAvail((v) => !v),
     toggleVerified: () => setFilterVerified((v) => !v),
     jours, adminUsers, metiers, zonesHaiti: ZONES_HAITI, faqList,
-    catFilters, catFilterList, filteredCatalogue, filteredServices, catalogue,
+    catFilters, catFilterList, filteredCatalogue, filteredServices, catalogue, goToServiceCategory,
     servicesLoading: servicesQuery.isLoading,
     servicesError: servicesQuery.isError,
     noServices: !servicesQuery.isLoading && !servicesQuery.isError && services.length === 0,
