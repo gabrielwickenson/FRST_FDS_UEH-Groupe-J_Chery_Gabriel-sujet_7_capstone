@@ -200,9 +200,19 @@ function Profil() {
           <h2 className="k243">
             À propos
           </h2>
-          <p className="k244">
-            Plombier certifié depuis 8 ans, j'interviens rapidement pour tous vos travaux de plomberie : fuites, débouchage, installation sanitaire et dépannage d'urgence. Travail soigné et garanti, devis gratuit avant chaque intervention.
+          {pro.bio ? (
+<p className="k244">
+            {pro.bio}
           </p>
+) : isOwnProfile ? (
+<p className="k244" style={{color: "#9CA3AF"}}>
+            Vous n'avez pas encore ajouté de description. <span style={{color: "#19355F", fontWeight: 700, cursor: "pointer"}} onClick={nav.params}>Ajoutez-en une</span>.
+          </p>
+) : (
+<p className="k244" style={{color: "#9CA3AF"}}>
+            Ce professionnel n'a pas encore renseigné de description.
+          </p>
+)}
           <div className="k245">
             <span className="k246">
               Fuites d'eau

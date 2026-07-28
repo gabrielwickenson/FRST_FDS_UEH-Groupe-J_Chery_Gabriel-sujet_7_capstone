@@ -247,6 +247,20 @@ function Parametres() {
             <input className="k336" value={telephoneInput} onChange={(e) => setTelephoneInput(e.target.value)} />
           </div>
         </div>
+        {isPro ? (
+<div className="k643">
+  <label className="k307">
+    À propos
+  </label>
+  <textarea
+    className="k386"
+    placeholder="Présentez votre expérience, vos spécialités..."
+    value={bioInput}
+    onChange={(e) => setBioInput(e.target.value)}
+    style={{width: "100%", minHeight: 110}}
+  ></textarea>
+</div>
+) : null}
         {saveMsg ? (
 <p style={{color: saveMsg === "Profil mis à jour." ? "#139356" : "#B45309", fontSize: 13.5}}>{saveMsg}</p>
 ) : null}
