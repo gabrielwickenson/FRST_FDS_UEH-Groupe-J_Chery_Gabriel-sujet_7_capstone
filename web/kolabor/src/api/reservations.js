@@ -11,6 +11,14 @@ export function updateStatut(id, statut, prestataireId) {
   return api.put(`/reservations/${id}/statut`, null, { params: { statut, prestataireId } }).then((r) => r.data);
 }
 
+// PUT /api/reservations/{id}/annuler?clientId=... — Annuler sa propre réservation (client)
+// Distinct de updateStatut ci-dessus, qui est réservé au prestataire (il
+// vérifie prestataireId, jamais clientId) et ne peut donc pas servir à un
+// client pour annuler sa propre réservation.
+export function annulerReservationClient(id, clientId) {
+  return api.put(`/reservations/${id}/annuler`, null, { params: { clientId } }).then((r) => r.data);
+}
+
 // POST /api/reservations/{id}/paiement?modePaiement=...&clientId=... — Simuler un paiement (client)
 // Le backend attend ces deux valeurs en paramètres de requête, pas dans le corps JSON.
 export function payerReservation(id, modePaiement, clientId) {

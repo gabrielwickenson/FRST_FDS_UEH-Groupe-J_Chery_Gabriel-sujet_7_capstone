@@ -39,3 +39,15 @@ export function getStatistiques(id) {
 export function getRevenueWeek(id) {
   return api.get(`/prestataires/${id}/revenue/week`).then((r) => r.data);
 }
+
+// GET /api/prestataires/{id}/avis — Tous les avis d'un prestataire (avis de
+// profil + avis liés à une réservation terminée)
+export function getAvisProfil(id) {
+  return api.get(`/prestataires/${id}/avis`).then((r) => r.data);
+}
+
+// POST /api/prestataires/{id}/avis?clientId=... — Laisser un avis directement
+// sur le profil d'un prestataire, sans réservation associée.
+export function laisserAvisProfil(id, payload, clientId) {
+  return api.post(`/prestataires/${id}/avis`, payload, { params: { clientId } }).then((r) => r.data);
+}

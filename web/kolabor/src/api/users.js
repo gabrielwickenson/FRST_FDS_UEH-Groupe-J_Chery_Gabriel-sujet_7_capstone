@@ -5,6 +5,12 @@ export function getUser(id) {
   return api.get(`/users/${id}`).then((r) => r.data);
 }
 
+// PUT /api/users/{id} — Mettre à jour le profil de base (nom, téléphone) de
+// l'utilisateur connecté, quel que soit son rôle (client ou prestataire).
+export function updateProfile(id, payload) {
+  return api.put(`/users/${id}`, payload).then((r) => r.data);
+}
+
 // GET /api/users/{id}/photo — Récupérer la photo de profil d'un utilisateur
 export function getUserPhotoUrl(id) {
   // Route brute utilisable directement comme src d'une <img>, avec le token déjà géré
