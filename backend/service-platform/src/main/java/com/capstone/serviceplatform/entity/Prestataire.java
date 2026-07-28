@@ -13,7 +13,14 @@ public class Prestataire extends User {
     private BigDecimal tarifHoraire;
     private String zoneIntervention;
     private BigDecimal moyenneNotes;
-    @Formula("(SELECT COUNT(*) FROM avis a JOIN reservation r ON a.reservation_id = r.id WHERE r.prestataire_id = id)")
+    // Description libre affichée dans la section "À propos" du profil
+    // public. Modifiable par le prestataire lui-même depuis Paramètres.
+    @Column(length = 2000)
+    private String bio;
+    // Compte les avis liés directement (colonne avis.prestataire_id, toujours
+    // renseignée) plutôt que de passer par la réservation, pour inclure les
+    // avis laissés directement sur le profil sans réservation associée.
+    @Formula("(SELECT COUNT(*) FROM avis a WHERE a.prestataire_id = id)")
     private int nombreAvis;
     private Boolean disponible = true;
 
@@ -64,5 +71,13 @@ public class Prestataire extends User {
 
     public void setMoyenneNotes(BigDecimal moyenneNotes) {
         this.moyenneNotes = moyenneNotes;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
     }
 }

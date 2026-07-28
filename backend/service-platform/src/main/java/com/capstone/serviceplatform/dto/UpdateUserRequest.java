@@ -7,6 +7,7 @@ public class UpdateUserRequest {
     private String competences;
     private Double tarifHoraire;
     private String zoneIntervention;
+    private String bio;
 
     // Getters et setters
     public String getNom() { return nom; }
@@ -21,4 +22,6 @@ public class UpdateUserRequest {
     public void setTarifHoraire(Double tarifHoraire) { this.tarifHoraire = tarifHoraire; }
     public String getZoneIntervention() { return zoneIntervention; }
     public void setZoneIntervention(String zoneIntervention) { this.zoneIntervention = zoneIntervention; }
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
 }

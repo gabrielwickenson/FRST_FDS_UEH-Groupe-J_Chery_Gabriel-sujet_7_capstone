@@ -99,7 +99,27 @@ public class AuthController {
         }
 
         savedUser.setMotDePasse(null);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
+
+        // L'inscription ne renvoyait auparavant aucun token JWT : le
+        // frontend croyait la session ouverte (la réponse contient bien un
+        // utilisateur) et naviguait directement vers un écran protégé
+        // (dashpro/dashclient) sans jamais avoir de token valide en
+        // localStorage. Résultat : la toute première requête authentifiée
+        // échouait en 401 et l'app affichait "Votre session a expiré",
+        // juste après une inscription réussie. On génère donc un token ici
+        // aussi, exactement comme /login, pour connecter automatiquement
+        // l'utilisateur dès son inscription.
+        String token = jwtUtils.generateToken(savedUser.getEmail(), savedUser.getRole().name());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", savedUser.getId());
+        response.put("email", savedUser.getEmail());
+        response.put("nom", savedUser.getNom());
+        response.put("role", savedUser.getRole().name());
+        response.put("token", token);
+        response.put("utilisateur", savedUser);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/login")

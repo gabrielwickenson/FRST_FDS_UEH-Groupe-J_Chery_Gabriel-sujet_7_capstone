@@ -1,5 +1,6 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.UpdateUserRequest;
 import com.capstone.serviceplatform.entity.User;
 import com.capstone.serviceplatform.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -117,6 +119,49 @@ public class UserController {
 
         user.setMotDePasse(null);
         return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Mettre a jour le profil de base (nom, telephone) de l'utilisateur connecte, quel que soit son role")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Profil mis a jour"),
+            @ApiResponse(responseCode = "401", description = "Non authentifie"),
+            @ApiResponse(responseCode = "403", description = "Non autorise"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur non trouve")
+    })
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
+
+        User currentUser = getAuthenticatedUser();
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifie"));
+        }
+
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'etes pas autorise a modifier le profil d'un autre utilisateur"));
+        }
+
+        User user = userRepository.findById(id).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Utilisateur non trouve"));
+        }
+
+        // Met a jour uniquement les champs presents sur l'entite User de
+        // base (communs a Client et Prestataire). Les champs specifiques a
+        // un role (tarif horaire, competences, zone...) restent geres par
+        // PUT /api/prestataires/{id} pour les comptes PRESTATAIRE.
+        if (request.getNom() != null) {
+            user.setNom(request.getNom());
+        }
+        if (request.getTelephone() != null) {
+            user.setTelephone(request.getTelephone());
+        }
+
+        User saved = userRepository.save(user);
+        saved.setMotDePasse(null);
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping(value = "/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

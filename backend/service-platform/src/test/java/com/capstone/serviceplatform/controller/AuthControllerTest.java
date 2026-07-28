@@ -17,8 +17,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,18 +63,24 @@ public class AuthControllerTest {
             c.setId(1L);
             return c;
         });
+        when(jwtUtils.generateToken(anyString(), anyString())).thenReturn("fake-jwt-token");
 
         // 2. Exécution
         ResponseEntity<?> response = authController.register(request);
 
-        // 3. Vérification
+        // 3. Vérification — l'inscription renvoie désormais un token (comme
+        // /login) en plus des infos de base, pour connecter automatiquement
+        // l'utilisateur dès son inscription.
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        Client body = (Client) response.getBody();
-        assert body != null;
-        assertEquals("client@test.com", body.getEmail());
-        assertEquals("Jean Client", body.getNom());
-        assertEquals(Role.CLIENT, body.getRole());
-        assertEquals("Rue 123", body.getAdresseParDefaut());
+        Map<?, ?> body = (Map<?, ?>) response.getBody();
+        assertNotNull(body);
+        assertEquals("fake-jwt-token", body.get("token"));
+        assertEquals("client@test.com", body.get("email"));
+        assertEquals("Jean Client", body.get("nom"));
+        assertEquals("CLIENT", body.get("role"));
+        Client utilisateur = (Client) body.get("utilisateur");
+        assertNotNull(utilisateur);
+        assertEquals("Rue 123", utilisateur.getAdresseParDefaut());
     }
 
     @Test
@@ -92,19 +102,23 @@ public class AuthControllerTest {
             p.setId(2L);
             return p;
         });
+        when(jwtUtils.generateToken(anyString(), anyString())).thenReturn("fake-jwt-token");
 
         // 2. Exécution
         ResponseEntity<?> response = authController.register(request);
 
         // 3. Vérification
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        Prestataire body = (Prestataire) response.getBody();
-        assert body != null;
-        assertEquals("presta@test.com", body.getEmail());
-        assertEquals("Marie Presta", body.getNom());
-        assertEquals(Role.PRESTATAIRE, body.getRole());
-        assertEquals("Plomberie", body.getCompetences());
-        assertEquals(500.0, body.getTarifHoraire().doubleValue());
+        Map<?, ?> body = (Map<?, ?>) response.getBody();
+        assertNotNull(body);
+        assertEquals("fake-jwt-token", body.get("token"));
+        assertEquals("presta@test.com", body.get("email"));
+        assertEquals("Marie Presta", body.get("nom"));
+        assertEquals("PRESTATAIRE", body.get("role"));
+        Prestataire utilisateur = (Prestataire) body.get("utilisateur");
+        assertNotNull(utilisateur);
+        assertEquals("Plomberie", utilisateur.getCompetences());
+        assertEquals(500.0, utilisateur.getTarifHoraire().doubleValue());
     }
 
     @Test

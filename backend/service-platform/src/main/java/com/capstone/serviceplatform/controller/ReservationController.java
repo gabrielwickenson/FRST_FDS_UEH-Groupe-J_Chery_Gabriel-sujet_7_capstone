@@ -93,13 +93,18 @@ public class ReservationController {
                     .body(Map.of("error", "Service non trouvé"));
         }
 
-        // Vérification compétence
-        String competences = prestataire.getCompetences() != null ? prestataire.getCompetences().toLowerCase() : "";
-        String serviceNom = service.getNom().toLowerCase();
-        if (!competences.contains(serviceNom)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Ce prestataire ne propose pas le service demandé : " + service.getNom()));
-        }
+        // Vérification compétence : désactivée à la demande — la réservation
+        // doit être créée et stockée même si le prestataire ne propose pas
+        // (ou ne semble pas proposer, d'après son champ `competences`) le
+        // service demandé, pour ne jamais bloquer la création d'une
+        // réservation sur cette seule vérification. On garde le calcul en
+        // commentaire pour la réactiver facilement si besoin.
+        // String competences = prestataire.getCompetences() != null ? prestataire.getCompetences().toLowerCase() : "";
+        // String serviceCategorie = service.getCategorie() != null ? service.getCategorie().toLowerCase() : "";
+        // if (!competences.contains(serviceCategorie)) {
+        //     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        //             .body(Map.of("error", "Ce prestataire ne propose pas le service demandé : " + service.getNom()));
+        // }
 
         // Vérification conflit de créneau
         boolean conflit = reservationRepository.existsConflit(prestataire.getId(), request.getDateHeure());
@@ -108,22 +113,30 @@ public class ReservationController {
                     .body(Map.of("error", "Le prestataire est déjà réservé à cette date/heure"));
         }
 
-        // Vérification disponibilités
-        String jourDemande = request.getDateHeure()
-                .getDayOfWeek()
-                .getDisplayName(TextStyle.FULL, Locale.FRENCH)
-                .toUpperCase();
-        LocalTime heureDemande = request.getDateHeure().toLocalTime();
-        List<Disponibilite> dispoList = disponibiliteRepository.findByPrestataire(prestataire);
-        boolean dispoOk = dispoList.stream().anyMatch(d ->
-                d.getJour().equalsIgnoreCase(jourDemande) &&
-                        !heureDemande.isBefore(d.getHeureDebut()) &&
-                        !heureDemande.isAfter(d.getHeureFin())
-        );
-        if (!dispoOk) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Le prestataire n'est pas disponible à cette date/heure"));
-        }
+        // Vérification disponibilités : désactivée à la demande, pour la
+        // même raison que la vérification de compétence ci-dessus. Tant
+        // qu'un prestataire n'a configuré aucune Disponibilite (page
+        // Disponibilités de son tableau de bord), cette vérification
+        // bloquait TOUTE réservation avec lui, quels que soient le service,
+        // la date ou l'heure — c'était la cause de "impossible de jamais
+        // terminer une réservation". On garde le calcul en commentaire pour
+        // la réactiver facilement une fois que les prestataires de test
+        // auront de vraies disponibilités enregistrées.
+        // String jourDemande = request.getDateHeure()
+        //         .getDayOfWeek()
+        //         .getDisplayName(TextStyle.FULL, Locale.FRENCH)
+        //         .toUpperCase();
+        // LocalTime heureDemande = request.getDateHeure().toLocalTime();
+        // List<Disponibilite> dispoList = disponibiliteRepository.findByPrestataire(prestataire);
+        // boolean dispoOk = dispoList.stream().anyMatch(d ->
+        //         d.getJour().equalsIgnoreCase(jourDemande) &&
+        //                 !heureDemande.isBefore(d.getHeureDebut()) &&
+        //                 !heureDemande.isAfter(d.getHeureFin())
+        // );
+        // if (!dispoOk) {
+        //     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        //             .body(Map.of("error", "Le prestataire n'est pas disponible à cette date/heure"));
+        // }
 
         Reservation reservation = new Reservation();
         reservation.setClient(client);
@@ -248,6 +261,80 @@ public class ReservationController {
         updated.setPrestataire(null);
         return ResponseEntity.ok(updated);
     }
+
+    // -------------------- ANNULATION (CLIENT) --------------------
+    // PUT /statut ci-dessus est réservé au prestataire (il vérifie
+    // prestataireId, jamais clientId) : un client n'avait donc aucun moyen
+    // d'annuler sa propre réservation — le bouton "Annuler" côté client
+    // échouait systématiquement en 403. Cet endpoint dédié comble ce trou.
+    @PutMapping("/{id}/annuler")
+    @Operation(summary = "Annuler sa propre réservation (client)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Réservation annulée"),
+            @ApiResponse(responseCode = "400", description = "Réservation déjà terminée ou déjà annulée"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé"),
+            @ApiResponse(responseCode = "404", description = "Réservation non trouvée")
+    })
+    public ResponseEntity<?> annulerReservation(@PathVariable Long id,
+                                                 @RequestParam Long clientId) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Seule l'identité compte (un compte PRESTATAIRE peut aussi être
+        // client d'une réservation qu'il souhaite annuler).
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à annuler une réservation pour un autre client"));
+        }
+
+        // 3. Récupérer la réservation
+        Reservation reservation = reservationRepository.findById(id).orElse(null);
+        if (reservation == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Réservation non trouvée"));
+        }
+
+        // 4. Vérifier que le client de la réservation correspond bien au client connecté
+        if (reservation.getClient() == null || !reservation.getClient().getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à annuler cette réservation"));
+        }
+
+        // 5. Une réservation déjà terminée ou déjà annulée ne peut plus l'être
+        String statutActuel = reservation.getStatut();
+        if ("TERMINEE".equals(statutActuel) || "ANNULEE".equals(statutActuel)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Cette réservation ne peut plus être annulée"));
+        }
+
+        // 6. Annuler
+        reservation.setStatut("ANNULEE");
+        Reservation updated = reservationRepository.save(reservation);
+
+        // 7. Notification au prestataire
+        Prestataire prestataire = reservation.getPrestataire();
+        if (prestataire != null && prestataire.getFcmToken() != null && !prestataire.getFcmToken().isEmpty()) {
+            try {
+                notificationService.envoyerNotification(prestataire.getFcmToken(), prestataire,
+                        "Réservation annulée",
+                        "Le client a annulé sa réservation du " + reservation.getDateHeure());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        updated.setClient(null);
+        updated.setPrestataire(null);
+        return ResponseEntity.ok(updated);
+    }
+
     // -------------------- CONSULTATION RÉSERVATIONS (CLIENT) --------------------
     // Ancien endpoint avec ID – protégé par vérification de propriétaire
     @GetMapping("/client/{clientId}")
@@ -432,6 +519,11 @@ public class ReservationController {
         // 7. Créer et sauvegarder l'avis
         Avis avis = new Avis();
         avis.setReservation(reservation);
+        // Lien direct vers le prestataire et le client, en plus de la
+        // réservation, pour que cet avis remonte aussi via
+        // AvisRepository.findByPrestataireId (utilisée par la page Profil).
+        avis.setPrestataire(reservation.getPrestataire());
+        avis.setClient(reservation.getClient());
         avis.setNote(avisRequest.getNote());
         avis.setCommentaire(avisRequest.getCommentaire());
         avis.setDate(new Date());
@@ -439,7 +531,7 @@ public class ReservationController {
 
         // 8. Mettre à jour la moyenne du prestataire
         Prestataire prestataire = reservation.getPrestataire();
-        List<Avis> avisList = avisRepository.findByReservationPrestataireId(prestataire.getId());
+        List<Avis> avisList = avisRepository.findByPrestataireId(prestataire.getId());
         double moyenne = avisList.stream().mapToInt(Avis::getNote).average().orElse(0.0);
         prestataire.setMoyenneNotes(BigDecimal.valueOf(moyenne));
         prestataireRepository.save(prestataire);
@@ -448,13 +540,13 @@ public class ReservationController {
     }
 
     @GetMapping("/{id}/avis")
-    @Operation(summary = "Récupérer tous les avis d'un prestataire")
+    @Operation(summary = "Récupérer tous les avis d'un prestataire (ancien chemin, conservé pour compatibilité — voir aussi GET /api/prestataires/{id}/avis)")
     public ResponseEntity<List<Avis>> getAvisByPrestataire(@PathVariable Long id) {
         // Vérifier que le prestataire existe
         if (!prestataireRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-        List<Avis> avis = avisRepository.findByReservationPrestataireId(id);
+        List<Avis> avis = avisRepository.findByPrestataireId(id);
         return ResponseEntity.ok(avis);
     }
     

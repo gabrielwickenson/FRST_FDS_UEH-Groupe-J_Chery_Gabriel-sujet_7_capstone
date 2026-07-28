@@ -1,7 +1,10 @@
 package com.capstone.serviceplatform.controller;
 
+import com.capstone.serviceplatform.dto.AvisRequest;
 import com.capstone.serviceplatform.dto.DailyRevenue;
 import com.capstone.serviceplatform.entity.*;
+import com.capstone.serviceplatform.repository.AvisRepository;
+import com.capstone.serviceplatform.repository.ClientRepository;
 import com.capstone.serviceplatform.repository.DisponibiliteRepository;
 import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.ReservationRepository;
@@ -48,6 +51,26 @@ public class PrestataireController {
     private DisponibiliteRepository disponibiliteRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private AvisRepository avisRepository;
+    @Autowired
+    private ClientRepository clientRepository;
+
+    // Récupère la ligne `prestataire` de l'utilisateur, et la provisionne à
+    // la volée si elle manque (compte dont le rôle affiché est PRESTATAIRE
+    // mais qui n'a, pour une raison ou une autre, jamais eu de ligne fille
+    // créée — voir PrestataireRepository.provisionPrestataireRow). Utilisé
+    // partout où l'appelant a déjà été vérifié comme étant le propriétaire
+    // du compte `id`, pour ne pas renvoyer un 404 "Prestataire non trouvé"
+    // à répétition sur un compte par ailleurs valide.
+    private Prestataire resolvePrestataire(Long id) {
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null && userRepository.existsById(id)) {
+            prestataireRepository.provisionPrestataireRow(id);
+            prestataire = prestataireRepository.findById(id).orElse(null);
+        }
+        return prestataire;
+    }
 
     @GetMapping("/recherche")
     @Operation(summary = "Recherche publique de prestataires (filtres optionnels)")
@@ -98,8 +121,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les statistiques d'un autre prestataire"));
         }
 
-        // 5. Récupérer le prestataire (optionnel, car on a déjà l'utilisateur)
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 5. Récupérer le prestataire (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -155,8 +178,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à ajouter des disponibilités pour un autre prestataire"));
         }
 
-        // 4. Récupérer le prestataire (optionnel, car on a déjà l'utilisateur)
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 4. Récupérer le prestataire (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -201,8 +224,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les disponibilités d'un autre prestataire"));
         }
 
-        // 5. Récupérer le prestataire (optionnel)
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 5. Récupérer le prestataire (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -282,8 +305,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à modifier la disponibilité d'un autre prestataire"));
         }
 
-        // 3. Récupérer le prestataire et mettre à jour
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 3. Récupérer le prestataire et mettre à jour (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -324,8 +347,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à modifier le profil d'un autre prestataire"));
         }
 
-        // 3. Récupérer le prestataire
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 3. Récupérer le prestataire (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -346,6 +369,9 @@ public class PrestataireController {
         }
         if (request.getZoneIntervention() != null) {
             prestataire.setZoneIntervention(request.getZoneIntervention());
+        }
+        if (request.getBio() != null) {
+            prestataire.setBio(request.getBio());
         }
 
         Prestataire updated = prestataireRepository.save(prestataire);
@@ -377,8 +403,8 @@ public class PrestataireController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à consulter les revenus d'un autre prestataire"));
         }
 
-        // 3. Vérifier que le prestataire existe
-        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        // 3. Vérifier que le prestataire existe (le provisionner si la ligne manque)
+        Prestataire prestataire = resolvePrestataire(id);
         if (prestataire == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Prestataire non trouvé"));
@@ -408,5 +434,107 @@ public class PrestataireController {
         }
 
         return ResponseEntity.ok(result);
+    }
+
+    // -------------------- AVIS SUR LE PROFIL --------------------
+    // Contrairement à POST /api/reservations/{id}/avis (qui exige une
+    // réservation TERMINEE précise), cet endpoint permet à n'importe quel
+    // compte connecté de laisser un avis directement sur le profil d'un
+    // prestataire, sans réservation associée.
+    @GetMapping("/{id}/avis")
+    @Operation(summary = "Récupérer tous les avis d'un prestataire (avis de profil + avis de réservation)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste des avis"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> getAvisDuProfil(@PathVariable Long id) {
+        if (!prestataireRepository.existsById(id)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+        List<Avis> avis = avisRepository.findByPrestataireId(id);
+        // Ne pas exposer les mots de passe des auteurs
+        avis.forEach(a -> {
+            if (a.getClient() != null) {
+                a.getClient().setMotDePasse(null);
+            }
+        });
+        return ResponseEntity.ok(avis);
+    }
+
+    @PostMapping("/{id}/avis")
+    @Operation(summary = "Laisser un avis directement sur le profil d'un prestataire (sans réservation)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Avis créé"),
+            @ApiResponse(responseCode = "400", description = "Données invalides ou avis sur son propre profil"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Non autorisé (vous ne pouvez laisser un avis qu'en votre nom)"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> laisserAvisSurProfil(@PathVariable Long id,
+                                                   @RequestBody @Valid AvisRequest avisRequest,
+                                                   @RequestParam Long clientId) {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Seule l'identité compte : un compte PRESTATAIRE peut aussi
+        // laisser un avis en tant que "client" sur un autre prestataire.
+        if (!currentUser.getId().equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Vous n'êtes pas autorisé à laisser un avis pour un autre utilisateur"));
+        }
+
+        // 3. On ne peut pas laisser un avis sur son propre profil
+        if (id.equals(clientId)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Vous ne pouvez pas laisser un avis sur votre propre profil"));
+        }
+
+        // 4. Récupérer le prestataire évalué
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+
+        // 5. Récupérer (ou provisionner) la ligne `client` de l'auteur — même
+        // mécanisme que pour la création de réservation, afin qu'un compte
+        // PRESTATAIRE puisse laisser un avis sans ligne `client` préexistante.
+        Client client = clientRepository.findById(clientId).orElse(null);
+        if (client == null) {
+            if (!userRepository.existsById(clientId)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Utilisateur non trouvé"));
+            }
+            clientRepository.provisionClientRow(clientId);
+            client = clientRepository.findById(clientId).orElse(null);
+        }
+
+        // 6. Créer et sauvegarder l'avis
+        Avis avis = new Avis();
+        avis.setPrestataire(prestataire);
+        avis.setClient(client);
+        avis.setNote(avisRequest.getNote());
+        avis.setCommentaire(avisRequest.getCommentaire());
+        avis.setDate(new Date());
+        avisRepository.save(avis);
+
+        // 7. Mettre à jour la moyenne du prestataire
+        List<Avis> avisList = avisRepository.findByPrestataireId(prestataire.getId());
+        double moyenne = avisList.stream().mapToInt(Avis::getNote).average().orElse(0.0);
+        prestataire.setMoyenneNotes(BigDecimal.valueOf(moyenne));
+        prestataireRepository.save(prestataire);
+
+        avis.setPrestataire(null);
+        if (avis.getClient() != null) {
+            avis.getClient().setMotDePasse(null);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(avis);
     }
 }
