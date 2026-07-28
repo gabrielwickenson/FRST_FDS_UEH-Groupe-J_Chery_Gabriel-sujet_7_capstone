@@ -10,6 +10,7 @@ const KNOWN_SCREENS = new Set([
   "login",
   "signup",
   "reserver",
+  "panier",
   "paiement",
   "confirm",
   "dashclient",
