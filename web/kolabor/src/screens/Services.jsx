@@ -99,8 +99,14 @@ function Services() {
     navPros,
     pros,
     featured,
+    setSelectedServiceId,
   } = useApp();
   const q = searchQ.trim().toLowerCase();
+
+  function ajouterAuPanierDepuisListe(sv) {
+    setSelectedServiceId(sv.id);
+    nav.reserver();
+  }
   const visibleServices = q
     ? filteredServices.filter((s) => s.title.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q))
     : filteredServices;
@@ -166,9 +172,12 @@ function Services() {
     <div className="k79">
       {sv.description}
     </div>
-    <div className="k150">
-      <button className="k152" onClick={sv.open} style={{width: "100%"}}>
+    <div className="k150" style={{gap: 8}}>
+      <button className="k266" onClick={sv.open} style={{width: "auto", margin: 0, flex: 1}}>
         Voir le détail
+      </button>
+      <button className="k152" onClick={() => ajouterAuPanierDepuisListe(sv)} style={{flex: 1}}>
+        Ajouter au panier
       </button>
     </div>
   </div>

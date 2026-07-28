@@ -107,9 +107,13 @@ function DashClient() {
   <div className="k424">
     <aside className="k425">
       <div className="k426">
-        <span className="k427">
+        {me.photoUrl ? (
+<img src={me.photoUrl} alt="" className="k427" style={{objectFit: "cover"}} />
+) : (
+<span className="k427">
           {me.initials}
         </span>
+)}
         <div>
           <div className="k23">
             {me.nom}
@@ -167,7 +171,7 @@ function DashClient() {
             Réservations
           </div>
           <div className="k435">
-            {reservationsClient.length}
+            {reservationsClient.filter((r) => r.statut !== "ANNULEE").length}
           </div>
         </div>
         <div className="k434">

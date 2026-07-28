@@ -2,6 +2,14 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function DashPro() {
+  // Bascule entre "Demandes reçues" (uniquement EN_ATTENTE, avec boutons
+  // accepter/refuser) et la liste complète de tous les clients qui ont
+  // réservé avec ce pro (tous statuts), sans jamais quitter /dashpro — le
+  // lien "Mes réservations (client)" ci-dessous sert à un usage différent
+  // (le pro réserve LUI-MÊME un service ailleurs en tant que client) et ne
+  // doit pas être confondu avec "voir qui a réservé avec moi".
+  const [showAllClients, setShowAllClients] = React.useState(false);
+
   const {
     calDays,
     isRoleClient,
@@ -108,9 +116,13 @@ function DashPro() {
   <div className="k424">
     <aside className="k425">
       <div className="k426">
-        <span className="k427">
+        {me.photoUrl ? (
+<img src={me.photoUrl} alt="" className="k427" style={{objectFit: "cover"}} />
+) : (
+<span className="k427">
           {me.initials}
         </span>
+)}
         <div>
           <div className="k23">
             {me.nom}
@@ -133,7 +145,7 @@ function DashPro() {
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Disponibilités
         </div>
-        <div className="k490">
+        <div className="k490" style={{cursor: "pointer"}} onClick={() => setShowAllClients(false)}>
           <span className="k491">
             <i className="icon fa-solid fa-heart-pulse" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
             Demandes reçues
@@ -216,18 +228,18 @@ function DashPro() {
         <div className="k443">
           <div className="k504">
             <h2 className="k505">
-              Demandes reçues
+              {showAllClients ? "Tous mes clients" : "Demandes reçues"}
             </h2>
-            <span className="k506">
-              Tout voir
+            <span className="k506" style={{cursor: "pointer"}} onClick={() => setShowAllClients((v) => !v)}>
+              {showAllClients ? "Voir les demandes" : "Tout voir"}
             </span>
           </div>
           <div className="k248">
             {reservationsProLoading ? (
 <p style={{color: "#6B7280"}}>Chargement…</p>
-) : demandesEnAttente.length === 0 ? (
-<p style={{color: "#6B7280"}}>Aucune demande en attente.</p>
-) : demandesEnAttente.map((r) => (
+) : (showAllClients ? reservationsPro : demandesEnAttente).length === 0 ? (
+<p style={{color: "#6B7280"}}>{showAllClients ? "Aucun client pour le moment." : "Aucune demande en attente."}</p>
+) : (showAllClients ? reservationsPro : demandesEnAttente).map((r) => (
 <div key={r.key} className="k507">
               <span className="k508">
                 {(r.clientNom || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
@@ -240,7 +252,8 @@ function DashPro() {
                   {r.titre} · {r.adresse} · {r.dateHeure}
                 </div>
               </div>
-              <div className="k509">
+              {r.statut === "EN_ATTENTE" ? (
+<div className="k509">
                 <button className="k510" onClick={() => accepterDemande(r.id)}>
                   <i className="icon fa-solid fa-check" style={{fontSize: "17px", color: "#fff"}}></i>
                 </button>
@@ -248,6 +261,9 @@ function DashPro() {
                   <i className="icon fa-solid fa-xmark" style={{fontSize: "15px", color: "currentColor"}}></i>
                 </button>
               </div>
+) : (
+<span className="k447">{r.statutLabel}</span>
+)}
             </div>
 ))}
           </div>

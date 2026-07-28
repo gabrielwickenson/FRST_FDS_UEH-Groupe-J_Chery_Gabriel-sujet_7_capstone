@@ -5,7 +5,7 @@ import { navigateTo } from "../router.jsx";
 import kolaborLogo from "../assets/kolabor-logo.svg";
 
 function Header() {
-  const { nav, navAccueil, navServices, navPros, me, screen } = useApp();
+  const { nav, navAccueil, navServices, navPros, me, screen, panierCount } = useApp();
   const { isAuthenticated, isPro, isAdmin, logout } = useAuth();
   const [menuOpen, setMenuOpen] = React.useState(false);
 
@@ -47,6 +47,19 @@ function Header() {
       </button>
     </nav>
     <div className="k793">
+      <button
+        type="button"
+        onClick={() => navigateTo("panier")}
+        aria-label="Mon panier"
+        style={{position: "relative", background: "none", border: "none", cursor: "pointer", padding: 8, display: "inline-flex", alignItems: "center"}}
+      >
+        <i className="icon fa-solid fa-cart-shopping" style={{fontSize: "19px", color: screen === "panier" ? "#19355F" : "#4B5563"}}></i>
+        {panierCount > 0 ? (
+<span style={{position: "absolute", top: 0, right: 0, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 999, background: "#139356", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center"}}>
+            {panierCount}
+          </span>
+) : null}
+      </button>
       {isAuthenticated ? (
 <React.Fragment>
       <button className="k795" onClick={() => navigateTo(isAdmin ? "admin" : isPro ? "dashpro" : "dashclient")}>

@@ -84,6 +84,7 @@ function Catalogue() {
     catFilters,
     catFilterList,
     filteredCatalogue,
+    filteredServices,
     catalogue,
     convList,
     activeConv,
@@ -97,7 +98,14 @@ function Catalogue() {
     navPros,
     pros,
     featured,
+    setSelectedServiceId,
   } = useApp();
+
+  function ajouterAuPanierDepuisCatalogue(sv) {
+    setSelectedServiceId(sv.id);
+    nav.reserver();
+  }
+
   return (
     <React.Fragment>
   <section className="k153">
@@ -136,36 +144,59 @@ function Catalogue() {
 </button>
 ))}
     </div>
-    <div className="k531">
+    <div>
       {servicesLoading ? (
-        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Chargement des catégories…</p>
+        <p style={{color: "#6B7280"}}>Chargement des services…</p>
       ) : servicesError ? (
-        <p style={{gridColumn: "1 / -1", color: "#B91C1C"}}>Impossible de charger le catalogue depuis le serveur.</p>
+        <p style={{color: "#B91C1C"}}>Impossible de charger le catalogue depuis le serveur.</p>
       ) : noServices ? (
-        <p style={{gridColumn: "1 / -1", color: "#6B7280"}}>Aucune catégorie disponible pour le moment.</p>
-      ) : filteredCatalogue.map((cat, __i) => (
-<div key={cat.id ?? __i} className="k144">
-  <div className="k532">
-    <img className="k73" src={img(`img-${cat.slug}`, 800, 600)} alt={cat.name} style={{objectFit: "cover"}} />
-    <span className="k146" style={{color: cat.color}}>
+        <p style={{color: "#6B7280"}}>Aucun service disponible pour le moment.</p>
+      ) : filteredCatalogue.length === 0 ? (
+        <p style={{color: "#6B7280"}}>Aucun service disponible dans cette catégorie pour le moment.</p>
+      ) : filteredCatalogue.map((cat, __ci) => {
+        const catServices = filteredServices.filter((sv) => sv.cat === cat.name);
+        if (catServices.length === 0) return null;
+        return (
+<div key={cat.slug ?? __ci} style={{marginBottom: 40}}>
+  <div style={{display: "flex", alignItems: "baseline", gap: 10, marginBottom: 16}}>
+    <h2 style={{fontSize: 22, fontWeight: 800, color: "#19355F", margin: 0}}>
       {cat.name}
+    </h2>
+    <span style={{fontSize: 13.5, color: "#9CA3AF", fontWeight: 600}}>
+      {catServices.length} service{catServices.length > 1 ? "s" : ""}
+    </span>
+  </div>
+  <div className="k531">
+    {catServices.map((sv, __i) => (
+<div key={sv.id ?? __i} className="k144">
+  <div className="k145">
+    <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt={sv.cat} style={{objectFit: "cover"}} />
+    <span className="k146" style={{color: sv.tag}}>
+      {sv.cat}
     </span>
   </div>
   <div className="k147">
     <h3 className="k148">
-      {cat.name}
+      {sv.title}
     </h3>
     <div className="k79">
-      {cat.count} service{cat.count > 1 ? "s" : ""}
+      {sv.description}
     </div>
-    <div className="k150">
-      <button className="k152" onClick={cat.open} style={{width: "100%"}}>
-        Voir
+    <div className="k150" style={{gap: 8}}>
+      <button className="k266" onClick={sv.open} style={{width: "auto", margin: 0, flex: 1}}>
+        Voir le détail
+      </button>
+      <button className="k152" onClick={() => ajouterAuPanierDepuisCatalogue(sv)} style={{flex: 1}}>
+        Ajouter au panier
       </button>
     </div>
   </div>
 </div>
 ))}
+  </div>
+</div>
+        );
+      })}
     </div>
   </section>
     </React.Fragment>

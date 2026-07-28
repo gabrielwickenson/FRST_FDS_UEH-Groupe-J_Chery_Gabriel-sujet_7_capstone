@@ -16,6 +16,13 @@ const TIME_SLOTS = [
   { value: "20:00", label: "20h – 22h" },
 ];
 
+// Normalisation utilisée pour comparer le titre d'un service aux
+// compétences d'un prestataire (accents/casse ignorés), pour rester
+// cohérent avec le filtre "contains" appliqué côté backend.
+function normalizeText(x) {
+  return (x || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 function todayStr() {
   const t = new Date();
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
@@ -200,14 +207,66 @@ function Reserver() {
     pros,
     featured,
     selectedProId,
+    setSelectedProId,
     selectedServiceId,
+    setSelectedServiceId,
     selectedService,
     setSelectedReservationId,
     setSelectedReservationMontant,
+    ajouterAuPanier,
+    panierCount,
   } = useApp();
 
   const proInfo = allPros.find((p) => String(p.id) === String(selectedProId));
   const montant = proInfo?.priceNum || 0;
+
+  // Professionnels qui proposent le service choisi et qui sont disponibles.
+  // Un pro choisit un seul métier/catégorie à l'inscription (ex.
+  // "Plomberie") : on compare donc ses compétences à la CATÉGORIE du
+  // service, pas à son titre précis (ex. "Réparation de fuite d'eau"),
+  // sinon aucun pro ne matche jamais. Si aucun service n'est choisi, on
+  // affiche tous les pros disponibles.
+  const prosForService = React.useMemo(() => {
+    const cat = normalizeText(selectedService?.cat || "");
+    return allPros.filter((p) => {
+      if (!p.available) return false;
+      if (!cat) return true;
+      return normalizeText(p.cat).includes(cat);
+    });
+  }, [allPros, selectedService]);
+
+  // Si le service choisi change et que le pro déjà sélectionné ne le propose
+  // plus, on désélectionne le pro pour éviter une combinaison invalide.
+  React.useEffect(() => {
+    if (selectedProId && !prosForService.some((p) => String(p.id) === String(selectedProId))) {
+      setSelectedProId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedServiceId]);
+
+  const [panierMsg, setPanierMsg] = React.useState("");
+
+  function handleAjouterAuPanier() {
+    setFormError("");
+    setPanierMsg("");
+    if (!selectedProId) { setFormError("Choisissez d'abord un professionnel."); return; }
+    if (!selectedServiceId) { setFormError("Choisissez d'abord un service."); return; }
+    if (!resDate || !resTime) { setFormError("Veuillez choisir une date et une heure."); return; }
+    if (resDate < min) { setFormError("La date choisie est déjà passée."); return; }
+    if (isSlotPast(resDate, resTime, min)) { setFormError("Ce créneau est déjà passé."); return; }
+    if (!adresse.trim()) { setFormError("Veuillez renseigner une adresse d'intervention."); return; }
+    ajouterAuPanier({
+      prestataireId: selectedProId,
+      proName: proInfo?.name || "Professionnel",
+      serviceId: selectedServiceId,
+      serviceTitle: selectedService?.title || "Service",
+      dateHeure: `${resDate}T${resTime}:00`,
+      adresse: adresse.trim(),
+      montant,
+    });
+    setPanierMsg("Ajouté au panier. Vous pouvez choisir un autre service ou aller au panier pour finaliser.");
+    setResTime("");
+  }
 
   const createReservationMutation = useMutation({
     mutationFn: createReservation,
@@ -215,12 +274,12 @@ function Reserver() {
 
   async function handleContinuer() {
     setFormError("");
-    if (!selectedProId) {
-      setFormError("Aucun professionnel sélectionné. Revenez à la recherche pour en choisir un.");
+    if (!selectedServiceId) {
+      setFormError("Veuillez d'abord choisir un service.");
       return;
     }
-    if (!selectedServiceId) {
-      setFormError("Veuillez d'abord choisir un service depuis la page Services.");
+    if (!selectedProId) {
+      setFormError("Veuillez choisir un professionnel disponible pour ce service.");
       return;
     }
     if (!resDate || !resTime) {
@@ -304,6 +363,51 @@ function Reserver() {
     </div>
     <div className="k368">
       <div className="k369">
+        <div className="k370">
+          <h2 className="k371" style={{marginBottom: 14}}>
+            Service et professionnel
+          </h2>
+          <div style={{display: "flex", flexDirection: "column", gap: 14}}>
+            <div>
+              <label className="k307" style={{display: "block", marginBottom: 6}}>
+                Service
+              </label>
+              <select
+                className="k385"
+                value={selectedServiceId ?? ""}
+                onChange={(e) => setSelectedServiceId(e.target.value || null)}
+              >
+                <option value="">Choisissez un service</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>{s.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="k307" style={{display: "block", marginBottom: 6}}>
+                Professionnel disponible pour ce service
+              </label>
+              <select
+                className="k385"
+                value={selectedProId ?? ""}
+                onChange={(e) => setSelectedProId(e.target.value || null)}
+                disabled={!selectedServiceId}
+              >
+                <option value="">
+                  {selectedServiceId ? "Choisissez un professionnel" : "Choisissez d'abord un service"}
+                </option>
+                {prosForService.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.price ? ` — ${p.price}` : ""}
+                  </option>
+                ))}
+              </select>
+              {selectedServiceId && prosForService.length === 0 ? (
+<p style={{color: "#9CA3AF", fontSize: 13, marginTop: 6}}>Aucun professionnel disponible pour ce service actuellement.</p>
+) : null}
+            </div>
+          </div>
+        </div>
         <div className="k370">
           <div className="k256">
             <h2 className="k371">
@@ -450,9 +554,29 @@ function Reserver() {
         {formError ? (
 <p style={{color: "#B91C1C", fontSize: 13.5, fontWeight: 600}}>{formError}</p>
 ) : null}
+        {panierMsg ? (
+<p style={{color: "#139356", fontSize: 13.5, fontWeight: 600}}>{panierMsg}</p>
+) : null}
         <button className="k275" onClick={handleContinuer} disabled={createReservationMutation.isPending}>
           {createReservationMutation.isPending ? "Création..." : "Continuer vers le paiement"}
         </button>
+        <button
+          type="button"
+          className="k403"
+          style={{width: "100%", marginTop: 10, padding: "12px", borderRadius: 10, fontWeight: 700, cursor: "pointer"}}
+          onClick={handleAjouterAuPanier}
+        >
+          Ajouter au panier
+        </button>
+        {panierCount > 0 ? (
+<button
+            type="button"
+            onClick={() => navigateTo("panier")}
+            style={{width: "100%", marginTop: 8, background: "none", border: "none", color: "#139356", fontWeight: 700, fontSize: 13.5, cursor: "pointer"}}
+          >
+            Voir mon panier ({panierCount})
+          </button>
+) : null}
       </aside>
     </div>
   </div>

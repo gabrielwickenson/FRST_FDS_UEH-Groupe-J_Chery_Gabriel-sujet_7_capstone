@@ -187,24 +187,6 @@ function Pros() {
           </span>
         </div>
       </div>
-      <div className="k184">
-        <div className="k191">
-          Tarif horaire
-        </div>
-        <div className="k192">
-          <span className="k193"></span>
-          <span className="k194"></span>
-          <span className="k195"></span>
-        </div>
-        <div className="k196">
-          <span>
-            150 Gdes
-          </span>
-          <span>
-            500 Gdes
-          </span>
-        </div>
-      </div>
     </aside>
     <div>
       <div className="k197">

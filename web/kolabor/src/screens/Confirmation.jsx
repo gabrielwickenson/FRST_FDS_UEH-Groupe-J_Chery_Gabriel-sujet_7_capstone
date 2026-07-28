@@ -96,27 +96,98 @@ function Confirmation() {
     selectedProId,
     selectedService,
     selectedReservationId,
+    checkoutSummary,
   } = useApp();
   const proInfo = allPros.find((p) => String(p.id) === String(selectedProId));
+  const isMulti = (checkoutSummary || []).length > 1;
+
+  const stepper = (
+    <div className="k359">
+      <div className="k199">
+        <span className="k360">
+          <i className="icon fa-solid fa-check" style={{fontSize: "15px", color: "#fff"}}></i>
+        </span>
+        <span className="k361">
+          Détails
+        </span>
+      </div>
+      <span className="k362"></span>
+      <div className="k199">
+        <span className="k360">
+          <i className="icon fa-solid fa-check" style={{fontSize: "15px", color: "#fff"}}></i>
+        </span>
+        <span className="k361">
+          Date & heure
+        </span>
+      </div>
+      <span className="k362"></span>
+      <div className="k199">
+        <span className="k360">
+          <i className="icon fa-solid fa-check" style={{fontSize: "15px", color: "#fff"}}></i>
+        </span>
+        <span className="k361">
+          Paiement
+        </span>
+      </div>
+      <span className="k362"></span>
+      <div className="k199">
+        <span className="k360">
+          <i className="icon fa-solid fa-check" style={{fontSize: "15px", color: "#fff"}}></i>
+        </span>
+        <span className="k361">
+          Confirmation
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <React.Fragment>
-  <div className="k411">
+  <div className="k358">
+    {stepper}
+  <div className="k411" style={{margin: "0 auto"}}>
     <span className="k412">
       <span className="k413">
         <i className="icon fa-solid fa-check" style={{fontSize: "32px", color: "#fff"}}></i>
       </span>
     </span>
     <h1 className="k229">
-      Réservation confirmée !
+      {isMulti ? `${checkoutSummary.length} réservations confirmées !` : "Réservation confirmée !"}
     </h1>
-    <p className="k414">
+    {isMulti ? (
+<p className="k414">
+      Vos {checkoutSummary.length} réservations sont confirmées. Un e-mail de confirmation vous a été envoyé.
+    </p>
+) : (
+<p className="k414">
       Votre réservation avec
       <strong className="k132">
         {proInfo?.name || "le professionnel"}
       </strong>
       est confirmée. Un e-mail de confirmation vous a été envoyé.
     </p>
+)}
     <div className="k415">
+      {isMulti ? (
+<div className="k248">
+          {checkoutSummary.map((item) => (
+            <div className="k249" key={item.reservationId ?? `${item.serviceTitle}-${item.proName}`}>
+              <div>
+                <div className="k23">
+                  {item.serviceTitle}
+                </div>
+                <div className="k250">
+                  {item.proName} {item.reservationId ? `· #${item.reservationId}` : ""}
+                </div>
+              </div>
+              <span className="k252">
+                {item.montant ? `${item.montant} Gdes` : "Sur devis"}
+              </span>
+            </div>
+          ))}
+        </div>
+) : (
+<React.Fragment>
       <div className="k416">
         <span className="k15">
           N° de réservation
@@ -140,6 +211,8 @@ function Confirmation() {
           </div>
         </div>
       </div>
+</React.Fragment>
+)}
     </div>
     <div className="k421">
       <button className="k422" onClick={nav.dashclient}>
@@ -149,6 +222,10 @@ function Confirmation() {
         Retour à l'accueil
       </button>
     </div>
+  </div>
+  <div style={{marginTop: 48}}>
+    {stepper}
+  </div>
   </div>
     </React.Fragment>
   );

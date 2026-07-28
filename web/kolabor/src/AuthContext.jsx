@@ -1,6 +1,7 @@
 import React from "react";
 import * as authApi from "./api/auth.js";
 import { getUserId, getUserRole } from "./utils/field.js";
+import { navigateTo } from "./router.jsx";
 
 const AuthContext = React.createContext(null);
 
@@ -82,6 +83,24 @@ function AuthProvider({ children }) {
 
   const logout = React.useCallback(() => {
     persist(null, null);
+  }, [persist]);
+
+  // Le client HTTP (api/client.js) supprime déjà le token du localStorage
+  // dès qu'une requête échoue en 401, mais il ne peut pas mettre à jour cet
+  // état React directement (ce n'est pas un composant). Sans ce listener,
+  // l'app restait visuellement "connectée" (isAuthenticated à true) alors
+  // qu'aucune requête n'était plus authentifiée, ce qui faisait échouer en
+  // silence des actions comme la validation du panier — l'utilisateur ne
+  // comprenait pas pourquoi "rien ne marchait jamais". On aligne donc l'état
+  // React sur l'évènement et on renvoie vers la connexion.
+  React.useEffect(() => {
+    function handleUnauthorized() {
+      persist(null, null);
+      setAuthError("Votre session a expiré. Merci de vous reconnecter.");
+      navigateTo("login");
+    }
+    window.addEventListener("kolabor:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("kolabor:unauthorized", handleUnauthorized);
   }, [persist]);
 
   const value = React.useMemo(() => ({

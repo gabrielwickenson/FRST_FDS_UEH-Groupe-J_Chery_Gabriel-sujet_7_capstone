@@ -13,6 +13,7 @@ import ServiceDetail from "./screens/ServiceDetail.jsx";
 import Login from "./screens/Login.jsx";
 import Signup from "./screens/Signup.jsx";
 import Reserver from "./screens/Reserver.jsx";
+import Panier from "./screens/Panier.jsx";
 import Paiement from "./screens/Paiement.jsx";
 import Confirmation from "./screens/Confirmation.jsx";
 import DashClient from "./screens/DashClient.jsx";
@@ -44,6 +45,7 @@ const SCREEN_COMPONENTS = {
   login: Login,
   signup: Signup,
   reserver: Reserver,
+  panier: Panier,
   paiement: Paiement,
   confirm: Confirmation,
   dashclient: DashClient,
@@ -77,9 +79,13 @@ const PROTECTED_SCREENS = new Set([
 // Écrans réservés à un rôle précis. Un utilisateur connecté mais avec le
 // mauvais rôle est renvoyé vers son propre tableau de bord plutôt que
 // bloqué complètement.
+//
+// dashclient/factures ne sont volontairement PAS restreints à CLIENT : un
+// compte PRESTATAIRE peut lui aussi réserver des services en tant que
+// client (voir AppContext — reservationsClient récupère "mes réservations"
+// quel que soit le rôle du compte). Les bloquer au rôle CLIENT empêchait un
+// pro de jamais voir les services qu'il venait lui-même de réserver.
 const ROLE_SCREENS = {
-  dashclient: "CLIENT",
-  factures: "CLIENT",
   dashpro: "PRESTATAIRE",
   messervices: "PRESTATAIRE",
   dispos: "PRESTATAIRE",

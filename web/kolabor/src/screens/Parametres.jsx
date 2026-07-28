@@ -8,7 +8,7 @@ function Parametres() {
   const [saveMsg, setSaveMsg] = React.useState("");
   const [nomInput, setNomInput] = React.useState("");
   const [telephoneInput, setTelephoneInput] = React.useState("");
-  const [tarifInput, setTarifInput] = React.useState("");
+  const [bioInput, setBioInput] = React.useState("");
 
   const {
     calDays,
@@ -109,8 +109,8 @@ function Parametres() {
   React.useEffect(() => {
     setNomInput(me.nom);
     setTelephoneInput(me.telephone);
-    setTarifInput(me.tarifHoraire === "" || me.tarifHoraire == null ? "" : String(me.tarifHoraire));
-  }, [me.nom, me.telephone, me.tarifHoraire]);
+    setBioInput(me.bio || "");
+  }, [me.nom, me.telephone, me.bio]);
 
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
@@ -119,18 +119,32 @@ function Parametres() {
 
   function handleEnregistrer() {
     setSaveMsg("");
-    if (!isPro) {
-      setSaveMsg("La mise à jour du profil n'est pas encore disponible côté serveur pour les comptes client (aucun endpoint de mise à jour n'est exposé par l'API pour ce rôle).");
-      return;
-    }
+    // Le tarif horaire n'est plus modifiable depuis Paramètres : il n'est
+    // saisi qu'une seule fois, à l'inscription. On ne l'inclut donc jamais
+    // dans cette mise à jour. Le "bio" (À propos) n'a de sens que pour un
+    // compte pro : on ne l'envoie que dans ce cas.
     const payload = {
       nom: nomInput || undefined,
       telephone: telephoneInput || undefined,
-      tarifHoraire: tarifInput !== "" ? Number(tarifInput) : undefined,
+      ...(isPro ? { bio: bioInput } : {}),
     };
     updateProfileMutation.mutate(payload, {
       onSuccess: () => setSaveMsg("Profil mis à jour."),
-      onError: () => setSaveMsg("Impossible de mettre à jour le profil. Réessayez."),
+      onError: (err) => {
+        // Affiche la vraie raison renvoyée par le backend (403 mauvais
+        // compte, 404 profil prestataire introuvable, etc.) plutôt qu'un
+        // message générique qui ne permet pas de diagnostiquer le problème.
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+        let msg = null;
+        if (typeof data === "string" && data.trim()) msg = data.trim();
+        else if (data && typeof data === "object") {
+          if (typeof data.error === "string") msg = data.error;
+          else if (typeof data.message === "string") msg = data.message;
+        }
+        if (!msg) msg = status ? `Erreur ${status} du serveur.` : (err?.message || "Impossible de contacter le serveur.");
+        setSaveMsg(`Impossible de mettre à jour le profil : ${msg}`);
+      },
     });
   }
 
@@ -139,9 +153,13 @@ function Parametres() {
   <div className="k424">
     <aside className="k425">
       <div className="k426">
-        <span className="k427">
+        {me.photoUrl ? (
+<img src={me.photoUrl} alt="" className="k427" style={{objectFit: "cover"}} />
+) : (
+<span className="k427">
           {me.initials}
         </span>
+)}
         <div>
           <div className="k23">
             {me.nom}
@@ -197,9 +215,13 @@ function Parametres() {
           Informations personnelles
         </h2>
         <div className="k738">
-          <span className="k739">
+          {me.photoUrl ? (
+<img src={me.photoUrl} alt="Photo de profil" className="k739" style={{objectFit: "cover"}} />
+) : (
+<span className="k739">
             {me.initials}
           </span>
+)}
           <input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoChange} style={{display: "none"}} />
           <button className="k740" onClick={() => fileInputRef.current?.click()} disabled={uploadPhotoMutation.isPending}>
             {uploadPhotoMutation.isPending ? "Envoi..." : "Changer la photo"}
@@ -225,22 +247,6 @@ function Parametres() {
             <input className="k336" value={telephoneInput} onChange={(e) => setTelephoneInput(e.target.value)} />
           </div>
         </div>
-        {isPro ? (
-<div className="k643">
-  <label className="k307">
-    Tarif horaire (Gdes)
-  </label>
-  <input
-    className="k333"
-    type="number"
-    min="0"
-    step="1"
-    placeholder="250"
-    value={tarifInput}
-    onChange={(e) => setTarifInput(e.target.value)}
-  />
-</div>
-) : null}
         {saveMsg ? (
 <p style={{color: saveMsg === "Profil mis à jour." ? "#139356" : "#B45309", fontSize: 13.5}}>{saveMsg}</p>
 ) : null}

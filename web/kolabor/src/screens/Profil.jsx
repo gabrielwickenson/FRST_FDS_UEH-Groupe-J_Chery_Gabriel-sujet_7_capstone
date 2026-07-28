@@ -4,7 +4,7 @@ import { useAuth } from "../AuthContext.jsx";
 import { img } from "../images.js";
 
 function Profil() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isPro } = useAuth();
   const [avisNote, setAvisNote] = React.useState(0);
   const [avisHover, setAvisHover] = React.useState(0);
   const [avisCommentaire, setAvisCommentaire] = React.useState("");
@@ -103,14 +103,21 @@ function Profil() {
     navPros,
     pros,
     featured,
-    selectedProReviewableReservation,
+    canReviewSelectedPro,
     laisserAvisSurProfil,
-    laisserAvisMutation,
+    laisserAvisProfilMutation,
+    selectedProId,
+    authUserId,
   } = useApp();
   const pro = selectedPro || {};
   const proName = pro.name || "Prestataire";
   const proReviews = selectedProStats?.nombrePrestations ?? pro.reviews ?? 0;
   const proRating = selectedProStats?.moyenneNotes ?? pro.rating ?? "—";
+  // Un prestataire qui consulte SA PROPRE fiche publique doit pouvoir la
+  // modifier directement, plutôt que de voir des boutons "Réserver" qui
+  // n'ont aucun sens pour se réserver soi-même.
+  const isOwnProfile = isPro && isAuthenticated && !!selectedProId && !!authUserId
+    && String(selectedProId) === String(authUserId);
 
   function handleSubmitAvis() {
     if (!avisNote) return;
@@ -176,9 +183,15 @@ function Profil() {
         </div>
       </div>
       <div className="k238">
-        <button className="k239" onClick={nav.reserver}>
+        {isOwnProfile ? (
+<button className="k239" onClick={nav.params}>
+          Modifier mon profil
+        </button>
+) : (
+<button className="k239" onClick={nav.reserver}>
           Réserver
         </button>
+)}
       </div>
     </div>
     <div className="k241">
@@ -223,9 +236,11 @@ function Profil() {
                 <span className="k252">
                   250 Gdes
                 </span>
-                <button className="k253" onClick={nav.reserver}>
+                {!isOwnProfile ? (
+<button className="k253" onClick={nav.reserver}>
                   Réserver
                 </button>
+) : null}
               </div>
             </div>
             <div className="k249">
@@ -241,9 +256,11 @@ function Profil() {
                 <span className="k252">
                   200 Gdes
                 </span>
-                <button className="k253" onClick={nav.reserver}>
+                {!isOwnProfile ? (
+<button className="k253" onClick={nav.reserver}>
                   Réserver
                 </button>
+) : null}
               </div>
             </div>
             <div className="k249">
@@ -259,9 +276,11 @@ function Profil() {
                 <span className="k252">
                   Sur devis
                 </span>
-                <button className="k253" onClick={nav.reserver}>
+                {!isOwnProfile ? (
+<button className="k253" onClick={nav.reserver}>
                   Réserver
                 </button>
+) : null}
               </div>
             </div>
           </div>
@@ -315,7 +334,7 @@ function Profil() {
               <p style={{color: "#139356", fontSize: 14, fontWeight: 600}}>
                 Merci, votre avis a été publié.
               </p>
-            ) : selectedProReviewableReservation ? (
+            ) : canReviewSelectedPro ? (
               <React.Fragment>
                 <div style={{fontSize: 14, fontWeight: 700, color: "#19355F", marginBottom: 8}}>
                   Laisser un avis sur ce professionnel
@@ -343,28 +362,44 @@ function Profil() {
                   onChange={(e) => setAvisCommentaire(e.target.value)}
                   style={{width: "100%", marginBottom: 10}}
                 ></textarea>
+                {laisserAvisProfilMutation.isError ? (
+<p style={{color: "#B91C1C", fontSize: 13, marginBottom: 10}}>
+                  {laisserAvisProfilMutation.error?.response?.data?.error || "Impossible d'envoyer l'avis. Réessayez."}
+                </p>
+) : null}
                 <button
                   type="button"
                   className="k253"
-                  disabled={!avisNote || laisserAvisMutation.isPending}
+                  disabled={!avisNote || laisserAvisProfilMutation.isPending}
                   onClick={handleSubmitAvis}
                 >
-                  {laisserAvisMutation.isPending ? "Envoi..." : "Publier l'avis"}
+                  {laisserAvisProfilMutation.isPending ? "Envoi..." : "Publier l'avis"}
                 </button>
               </React.Fragment>
-            ) : isAuthenticated ? (
+            ) : isAuthenticated && selectedProId && authUserId && String(selectedProId) === String(authUserId) ? (
               <p style={{color: "#9CA3AF", fontSize: 13}}>
-                Vous pourrez laisser un avis une fois qu'une réservation avec ce professionnel sera terminée.
+                Vous ne pouvez pas laisser un avis sur votre propre profil.
               </p>
             ) : (
               <p style={{color: "#9CA3AF", fontSize: 13}}>
-                Connectez-vous pour laisser un avis après une réservation terminée.
+                Connectez-vous pour laisser un avis sur ce professionnel.
               </p>
             )}
           </div>
         </div>
       </div>
       <aside className="k267">
+        {isOwnProfile ? (
+<React.Fragment>
+        <p style={{color: "#6B7280", fontSize: 13.5, marginBottom: 14}}>
+          Ceci est votre fiche publique, telle que les clients la voient.
+        </p>
+        <button className="k275" onClick={nav.params}>
+          Modifier mon profil
+        </button>
+</React.Fragment>
+) : (
+<React.Fragment>
         <div className="k272">
           <div>
             <div className="k273">
@@ -392,6 +427,8 @@ function Profil() {
           <i className="icon fa-solid fa-lock" style={{fontSize: "15px", color: "#9CA3AF"}}></i>
           Paiement 100% sécurisé
         </div>
+</React.Fragment>
+)}
       </aside>
     </div>
   </section>

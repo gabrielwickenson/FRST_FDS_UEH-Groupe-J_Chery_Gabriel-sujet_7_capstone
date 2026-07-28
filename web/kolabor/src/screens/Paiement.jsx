@@ -103,15 +103,36 @@ function Paiement() {
     featured,
     selectedReservationId,
     selectedReservationMontant,
+    selectedReservationIds,
+    panierCheckoutError,
   } = useApp();
 
+  // Un checkout panier (plusieurs services validés d'un coup) peuple
+  // selectedReservationIds ; le flux "un seul service" existant continue de
+  // n'utiliser que selectedReservationId. On paie donc chaque réservation
+  // de la liste l'une après l'autre.
+  const idsToPay = (selectedReservationIds && selectedReservationIds.length > 0)
+    ? selectedReservationIds
+    : (selectedReservationId ? [selectedReservationId] : []);
+
   const payMutation = useMutation({
-    mutationFn: () => payerReservation(selectedReservationId, methode, userId),
+    mutationFn: async () => {
+      const failed = [];
+      for (const id of idsToPay) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await payerReservation(id, methode, userId);
+        } catch (err) {
+          failed.push(id);
+        }
+      }
+      return { failed };
+    },
   });
 
   async function handlePayer() {
     setPayError("");
-    if (!selectedReservationId) {
+    if (idsToPay.length === 0) {
       setPayError("Aucune réservation en cours. Recommencez la réservation.");
       return;
     }
@@ -120,8 +141,14 @@ function Paiement() {
       return;
     }
     try {
-      await payMutation.mutateAsync();
-      navigateTo("confirm");
+      const { failed } = await payMutation.mutateAsync();
+      if (failed.length === 0) {
+        navigateTo("confirm");
+      } else if (failed.length < idsToPay.length) {
+        setPayError(`${failed.length} paiement(s) sur ${idsToPay.length} ont échoué. Vous pouvez réessayer.`);
+      } else {
+        setPayError("Le paiement a échoué. Réessayez.");
+      }
     } catch (err) {
       setPayError(err?.response?.data?.message || "Le paiement a échoué. Réessayez.");
     }
@@ -169,11 +196,14 @@ function Paiement() {
     </div>
     <div className="k368">
       <div className="k88">
+        {panierCheckoutError ? (
+<p style={{color: "#B45309", background: "#FEF3C7", padding: "10px 14px", borderRadius: 10, fontSize: 13.5, fontWeight: 600, marginBottom: 16}}>{panierCheckoutError}</p>
+) : null}
         <h2 className="k397">
           Mode de paiement
         </h2>
         <p className="k398">
-          Vos informations sont chiffrées et sécurisées.
+          {idsToPay.length > 1 ? `${idsToPay.length} réservations à payer. Vos informations sont chiffrées et sécurisées.` : "Vos informations sont chiffrées et sécurisées."}
         </p>
         <div className="k399">
           <label className={methode === "CARTE" ? "k400" : "k403"} onClick={() => setMethode("CARTE")}>

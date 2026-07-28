@@ -97,7 +97,9 @@ function Signup() {
         await settle();
         const role = (user?.["rôle"] || user?.role || "").toString().toUpperCase();
         resetForm();
-        navigateTo(role.includes("PRO") ? "dashpro" : "dashclient");
+        // "PRESTATAIRE" ne contient pas "PRO" : ce test envoyait toujours un
+        // compte fraîchement créé comme pro vers le tableau de bord client.
+        navigateTo(role.includes("PRESTATAIRE") ? "dashpro" : "dashclient");
         return;
       }
       // Le backend n'a pas renvoyé de session : on tente une connexion directe
@@ -113,7 +115,9 @@ function Signup() {
         await settle();
         const role = (loggedUser?.["rôle"] || loggedUser?.role || "").toString().toUpperCase();
         resetForm();
-        navigateTo(role.includes("PRO") ? "dashpro" : "dashclient");
+        // "PRESTATAIRE" ne contient pas "PRO" : ce test envoyait toujours un
+        // compte fraîchement créé comme pro vers le tableau de bord client.
+        navigateTo(role.includes("PRESTATAIRE") ? "dashpro" : "dashclient");
       } catch {
         await settle();
         navigateTo("login");

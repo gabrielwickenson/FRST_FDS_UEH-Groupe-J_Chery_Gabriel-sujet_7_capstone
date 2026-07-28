@@ -131,8 +131,144 @@ function AppProvider({ children }) {
   const [selectedProId, setSelectedProId] = React.useState(null);
   const [selectedReservationId, setSelectedReservationId] = React.useState(null);
   const [selectedReservationMontant, setSelectedReservationMontant] = React.useState(0);
+  // IDs des réservations créées lors d'une validation de panier (plusieurs
+  // services en une fois) — utilisé par Paiement/Confirmation en plus du
+  // couple selectedReservationId/selectedReservationMontant pour le flux
+  // "un seul service à la fois" existant.
+  const [selectedReservationIds, setSelectedReservationIds] = React.useState([]);
+  const [checkoutSummary, setCheckoutSummary] = React.useState([]);
+  const [panierCheckoutError, setPanierCheckoutError] = React.useState("");
+  const [panierCheckoutPending, setPanierCheckoutPending] = React.useState(false);
+
+  // ---- Panier (réservation de plusieurs services en une fois) ----
+  // Persisté en localStorage pour survivre à un rafraîchissement de page ;
+  // volontairement pas lié à un compte précis (le panier est un état de
+  // navigation, pas une donnée serveur).
+  const [panier, setPanier] = React.useState(() => {
+    try {
+      const raw = window.localStorage.getItem("kolabor_panier");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem("kolabor_panier", JSON.stringify(panier));
+    } catch {
+      // stockage indisponible (navigation privée, quota...) : on continue
+      // silencieusement avec un panier en mémoire seulement.
+    }
+  }, [panier]);
+
+  function ajouterAuPanier(item) {
+    const cartItemId = `${item.prestataireId}-${item.serviceId}-${item.dateHeure}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setPanier((cur) => [...cur, { ...item, cartItemId }]);
+    return cartItemId;
+  }
+
+  function retirerDuPanier(cartItemId) {
+    setPanier((cur) => cur.filter((it) => it.cartItemId !== cartItemId));
+  }
+
+  function viderPanier() {
+    setPanier([]);
+  }
+
+  const panierTotal = React.useMemo(() => (
+    panier.reduce((sum, it) => sum + (Number(it.montant) || 0), 0)
+  ), [panier]);
+  const panierCount = panier.length;
 
   const { isAuthenticated, isClient, isPro: isProRole, userId: authUserId, user: authUser } = useAuth();
+
+  // Valide le panier : crée une réservation par article (le backend n'a pas
+  // d'endpoint de réservation groupée), en boucle séquentielle pour rester
+  // simple et pouvoir isoler les échecs individuels (créneau déjà pris,
+  // etc.) sans faire échouer tout le panier.
+  async function validerPanier() {
+    if (!authUserId) {
+      setPanierCheckoutError("Vous devez être connecté pour réserver.");
+      return;
+    }
+    if (panier.length === 0) return;
+    setPanierCheckoutPending(true);
+    setPanierCheckoutError("");
+    const succeeded = [];
+    const failed = [];
+    for (const item of panier) {
+      try {
+        const payload = {
+          clientId: authUserId,
+          prestataireId: item.prestataireId,
+          serviceId: item.serviceId,
+          dateHeure: item.dateHeure,
+          adresse: item.adresse,
+          montant: item.montant,
+        };
+        // eslint-disable-next-line no-await-in-loop
+        const created = await reservationsApi.createReservation(payload);
+        const resId = created?.identifiant ?? created?.id;
+        succeeded.push({
+          cartItemId: item.cartItemId,
+          reservationId: resId,
+          serviceTitle: item.serviceTitle,
+          proName: item.proName,
+          montant: item.montant,
+        });
+      } catch (err) {
+        // Le backend renvoie ses erreurs sous la forme {error: "..."} (parfois
+        // {message: "..."} pour les erreurs de validation @Valid). On essaie
+        // ces deux clés, puis n'importe quelle valeur texte du corps, avant
+        // de retomber sur le statut HTTP — pour ne jamais afficher un message
+        // générique quand la vraie raison (créneau déjà pris, pro non
+        // disponible à cette heure, etc.) est disponible.
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+        let msg = null;
+        if (typeof data === "string" && data.trim()) {
+          msg = data.trim();
+        } else if (data && typeof data === "object") {
+          if (typeof data.error === "string") msg = data.error;
+          else if (typeof data.message === "string") msg = data.message;
+          else {
+            const strings = Object.values(data).filter((v) => typeof v === "string");
+            if (strings.length) msg = strings.join(" ");
+          }
+        }
+        if (!msg) {
+          msg = status ? `Erreur ${status} du serveur.` : (err?.message || "Impossible de contacter le serveur.");
+        }
+        failed.push({ cartItemId: item.cartItemId, serviceTitle: item.serviceTitle, proName: item.proName, error: msg });
+      }
+    }
+    setPanierCheckoutPending(false);
+    if (succeeded.length > 0) {
+      const succeededIds = new Set(succeeded.map((s) => s.cartItemId));
+      setPanier((cur) => cur.filter((it) => !succeededIds.has(it.cartItemId)));
+      setCheckoutSummary(succeeded);
+      setSelectedReservationIds(succeeded.map((s) => s.reservationId).filter(Boolean));
+      setSelectedReservationMontant(succeeded.reduce((sum, s) => sum + (Number(s.montant) || 0), 0));
+    }
+    if (failed.length > 0) {
+      setPanierCheckoutError(
+        `${failed.length} service${failed.length > 1 ? "s" : ""} n'${failed.length > 1 ? "ont" : "a"} pas pu être réservé${failed.length > 1 ? "s" : ""} : ` +
+        failed.map((f) => `${f.serviceTitle} avec ${f.proName} (${f.error})`).join(" · ")
+      );
+    }
+    if (succeeded.length > 0) {
+      // Sans ce refetch, la nouvelle réservation n'apparaît jamais dans "Mes
+      // réservations" tant que la page n'est pas rechargée manuellement :
+      // reservationsClientQuery ne se charge qu'une fois au montage de
+      // l'app, et la navigation entre écrans ne remonte pas AppProvider.
+      reservationsClientQuery.refetch();
+    }
+    if (succeeded.length > 0 && failed.length === 0) {
+      navigateTo("paiement");
+    }
+  }
 
   const meQuery = useQuery({
     queryKey: ["users", authUserId],
@@ -156,7 +292,14 @@ function AppProvider({ children }) {
       tarifHoraire: field(u, "tarifHoraire") ?? "",
       competences: field(u, "compétences", "competences") || "",
       zoneIntervention: field(u, "zoneIntervention") || "",
-      photoUrl: authUserId ? usersApi.getUserPhotoUrl(authUserId) : "",
+      bio: field(u, "bio") || "",
+      // NB: `field(u, "photo")` (l'URL publique /uploads/... renvoyée par le
+      // backend au moment de l'upload) est utilisée ici plutôt que
+      // `usersApi.getUserPhotoUrl(id)` (GET /users/{id}/photo). Ce dernier
+      // endpoint exige un Bearer token, or un <img src="..."> ne peut pas
+      // envoyer d'en-tête d'autorisation : la requête échouait donc toujours
+      // en 401 et la photo ne s'affichait jamais, même après un upload réussi.
+      photoUrl: field(u, "photo") || "",
     };
   }, [meQuery.data, authUserId, authUser]);
 
@@ -165,8 +308,17 @@ function AppProvider({ children }) {
     onSuccess: () => meQuery.refetch(),
   });
 
+  // Un compte PRESTATAIRE passe par PUT /api/prestataires/{id}, qui gère
+  // aussi bien les champs de base (nom, téléphone) que les champs propres au
+  // pro (bio, compétences, tarif, zone). Un compte CLIENT n'a pas ces
+  // champs-là : il passe par le PUT /api/users/{id} générique, qui n'existe
+  // que pour nom/téléphone mais fonctionne pour n'importe quel rôle.
   const updateProfileMutation = useMutation({
-    mutationFn: (payload) => prestatairesApi.updateProfile(authUserId, payload),
+    mutationFn: (payload) => (
+      isProRole
+        ? prestatairesApi.updateProfile(authUserId, payload)
+        : usersApi.updateProfile(authUserId, payload)
+    ),
     onSuccess: () => meQuery.refetch(),
   });
 
@@ -226,6 +378,7 @@ function AppProvider({ children }) {
     accueil: mk("accueil"), services: mk("services"), pros: mk("pros"),
     profil: mk("profil"), service: mk("service"), comment: mk("comment"),
     login: mk("login"), signup: mk("signup"), reserver: mk("reserver"),
+    panier: mk("panier"),
     paiement: mk("paiement"), confirm: mk("confirm"),
     dashclient: mk("dashclient"),
     dashpro: mk("dashpro"), admin: mk("admin"), catalogue: mk("catalogue"),
@@ -389,8 +542,8 @@ function AppProvider({ children }) {
   });
 
   const selectedProAvisQuery = useQuery({
-    queryKey: ["reservations", selectedProId, "avis"],
-    queryFn: () => reservationsApi.getAvis(selectedProId),
+    queryKey: ["prestataires", selectedProId, "avis"],
+    queryFn: () => prestatairesApi.getAvisProfil(selectedProId),
     enabled: !!selectedProId,
   });
 
@@ -410,7 +563,11 @@ function AppProvider({ children }) {
       rating: field(u, "moyenneNotes") || base.rating || "—",
       reviews: field(u, "nombreAvis") || base.reviews || 0,
       available: field(u, "disponible") ?? base.available ?? false,
-      photoUrl: usersApi.getUserPhotoUrl(selectedProId),
+      // Voir le commentaire équivalent dans `me` ci-dessus : on utilise l'URL
+      // publique stockée en base plutôt que l'endpoint protégé par token,
+      // inutilisable comme src d'<img>.
+      photoUrl: field(u, "photo") || base.photoUrl || "",
+      bio: field(u, "bio") || base.bio || "",
     };
   }, [selectedProUserQuery.data, selectedProFromList, selectedProId]);
 
@@ -424,6 +581,11 @@ function AppProvider({ children }) {
     queryKey: ["reservations", "me", "client"],
     queryFn: reservationsApi.getMesReservationsClient,
     enabled: isAuthenticated,
+    // AppProvider (et donc ses queries) ne se remonte jamais en naviguant
+    // entre écrans — sans ce polling, une réservation créée ou dont le
+    // statut change ailleurs (acceptée/refusée par le pro) n'apparaît/ne se
+    // met à jour ici qu'après un rechargement manuel complet de la page.
+    refetchInterval: 15000,
   });
 
   function normalizeReservation(r, i) {
@@ -464,7 +626,12 @@ function AppProvider({ children }) {
     const list = reservationsClient;
     const upcoming = list.filter((r) => r.statut === "ACCEPTEE" || r.statut === "EN_ATTENTE" || r.statut === "EN_COURS" || r.statut === "PAYEE").length;
     const done = list.filter((r) => r.statut === "TERMINEE").length;
-    const total = list.reduce((sum, r) => sum + (Number(r.montant) || 0), 0);
+    // Une réservation annulée ne doit compter ni dans le total dépensé ni
+    // dans aucune autre agrégation basée sur reservationsClient — sinon les
+    // chiffres du tableau de bord restent incohérents après une annulation.
+    const total = list
+      .filter((r) => r.statut !== "ANNULEE")
+      .reduce((sum, r) => sum + (Number(r.montant) || 0), 0);
     return { upcoming, done, total };
   }, [reservationsClient]);
 
@@ -485,36 +652,60 @@ function AppProvider({ children }) {
     },
   });
 
-  // Un utilisateur ne peut laisser un avis sur un pro que s'il a bien une
-  // réservation TERMINEE avec lui (contrainte imposée par le backend) —
-  // on retrouve donc la réservation éligible la plus récente pour le pro
-  // actuellement affiché sur la page Profil, quel que soit le rôle du
-  // compte connecté (client ou pro agissant comme client).
-  const selectedProReviewableReservation = React.useMemo(() => {
-    const candidates = reservationsClient.filter((r) => (
-      String(r.prestataireId) === String(selectedProId) && r.statut === "TERMINEE"
-    ));
-    if (candidates.length === 0) return null;
-    return candidates[candidates.length - 1];
-  }, [reservationsClient, selectedProId]);
+  // Avis laissé directement sur le profil d'un prestataire, sans passer par
+  // une réservation terminée (POST /api/prestataires/{id}/avis). N'importe
+  // quel compte connecté peut évaluer n'importe quel autre prestataire —
+  // seul l'avis sur son propre profil est bloqué (côté backend et UI).
+  const laisserAvisProfilMutation = useMutation({
+    mutationFn: ({ prestataireId, note, commentaire, clientId }) => (
+      prestatairesApi.laisserAvisProfil(prestataireId, { note, commentaire }, clientId)
+    ),
+    onSuccess: () => {
+      selectedProAvisQuery.refetch();
+      selectedProStatsQuery.refetch();
+    },
+  });
+
+  const canReviewSelectedPro = isAuthenticated && !!selectedProId && String(selectedProId) !== String(authUserId);
 
   function laisserAvisSurProfil(note, commentaire) {
-    if (!selectedProReviewableReservation) return;
-    laisserAvisMutation.mutate({
-      id: selectedProReviewableReservation.id,
+    if (!selectedProId || !authUserId) return;
+    laisserAvisProfilMutation.mutate({
+      prestataireId: selectedProId,
       note,
       commentaire: commentaire || "",
       clientId: authUserId,
     });
   }
 
-  // NB: côté backend, PUT /reservations/{id}/statut est réservé aux PRESTATAIRES
-  // (vérification explicite du rôle + de l'ID prestataire). Un client ne peut donc
-  // pas annuler sa propre réservation via cet endpoint : l'appel échouera avec un
-  // 403 "Accès réservé aux prestataires". Il n'existe pas d'endpoint d'annulation
-  // côté client dans l'API fournie.
+  // PUT /reservations/{id}/statut est réservé aux PRESTATAIRES (vérification
+  // explicite du rôle + de l'ID prestataire) : un client ne peut pas annuler
+  // sa propre réservation via cet endpoint. On utilise donc un endpoint dédié
+  // PUT /reservations/{id}/annuler, scoped à l'identité du client.
+  const annulerReservationMutation = useMutation({
+    mutationFn: ({ id, clientId }) => reservationsApi.annulerReservationClient(id, clientId),
+    onSuccess: () => reservationsClientQuery.refetch(),
+    onError: (err) => {
+      // Sans ce callback, un échec (ex: backend pas encore redémarré avec le
+      // nouvel endpoint → 404, ou réservation déjà terminée → 400) passait
+      // inaperçu : le bouton "Annuler" semblait "ne rien faire".
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      let msg = null;
+      if (typeof data === "string" && data.trim()) msg = data.trim();
+      else if (data && typeof data === "object") {
+        if (typeof data.error === "string") msg = data.error;
+        else if (typeof data.message === "string") msg = data.message;
+      }
+      if (!msg) msg = status ? `Erreur ${status} du serveur.` : (err?.message || "Impossible de contacter le serveur.");
+      window.alert(`Impossible d'annuler cette réservation : ${msg}`);
+    },
+  });
+
   function annulerReservation(id) {
-    updateStatutMutation.mutate({ id, statut: "ANNULEE", prestataireId: authUserId });
+    if (!authUserId) return;
+    if (!window.confirm("Annuler cette réservation ?")) return;
+    annulerReservationMutation.mutate({ id, clientId: authUserId });
   }
 
   function laisserAvisSurReservation(id) {
@@ -531,6 +722,10 @@ function AppProvider({ children }) {
     queryKey: ["reservations", "me", "prestataire"],
     queryFn: reservationsApi.getMesReservationsPrestataire,
     enabled: isAuthenticated && isProRole,
+    // Même raison que reservationsClientQuery : sans polling, une nouvelle
+    // demande de réservation créée par un client n'apparaît jamais dans
+    // "Demandes reçues" tant que le pro ne recharge pas la page à la main.
+    refetchInterval: 15000,
   });
 
   const reservationsPro = React.useMemo(() => (
@@ -743,16 +938,52 @@ function AppProvider({ children }) {
     pick: () => setCatFilterState(f),
   })), [catFilters, catFilter]);
 
-  const filteredCatalogue = React.useMemo(() => (
-    catFilter === "Tous" ? catalogue : catalogue.filter((c) => c.name === catFilter)
-  ), [catalogue, catFilter]);
+  // Un service n'est affiché aux utilisateurs que s'il existe au moins un
+  // prestataire disponible dont les compétences le couvrent. Un pro choisit
+  // un seul métier/catégorie à l'inscription (ex. "Plomberie") — sa valeur
+  // `competences` est donc à comparer à la CATÉGORIE du service (s.cat),
+  // jamais au titre précis du service (ex. "Réparation de fuite d'eau"),
+  // sinon aucun service ne matche jamais. C'est la même correspondance que
+  // le backend doit utiliser lors de la création d'une réservation.
+  const servicesWithPro = React.useMemo(() => (
+    services.filter((s) => allPros.some((p) => p.available && normalize(p.cat).includes(normalize(s.cat))))
+  ), [services, allPros]);
 
-  // Services filtrés par catégorie pour la page /services (les puces de
-  // filtre ci-dessus n'agissaient sur rien auparavant : ni cliquables, ni
-  // reliées à la liste affichée).
+  // Catalogue (page /services) filtré par catégorie ET par disponibilité
+  // réelle d'un prestataire pour ce service.
   const filteredServices = React.useMemo(() => (
-    catFilter === "Tous" ? services : services.filter((s) => s.cat === catFilter)
-  ), [services, catFilter]);
+    catFilter === "Tous" ? servicesWithPro : servicesWithPro.filter((s) => s.cat === catFilter)
+  ), [servicesWithPro, catFilter]);
+
+  // Catégories (page /catalogue) reconstruites à partir des services
+  // réservables uniquement, pour que le nombre de services affiché par
+  // catégorie et les catégories elles-mêmes restent cohérents avec ce qui
+  // est réellement listé ensuite sur /services.
+  const catalogueWithPro = React.useMemo(() => {
+    const groups = [];
+    const index = new Map();
+    servicesWithPro.forEach((s) => {
+      const name = s.cat;
+      if (!index.has(name)) {
+        index.set(name, groups.length);
+        groups.push({ name, items: [] });
+      }
+      groups[index.get(name)].items.push(s.title);
+    });
+    return groups.map((g, i) => ({
+      name: g.name,
+      slug: "cat" + i,
+      color: colorForIndex(i),
+      bg: "#F3F4F6",
+      count: g.items.length,
+      items: g.items,
+      open: () => { setCatFilterState(g.name); go("services"); },
+    }));
+  }, [servicesWithPro]);
+
+  const filteredCatalogue = React.useMemo(() => (
+    catFilter === "Tous" ? catalogueWithPro : catalogueWithPro.filter((c) => c.name === catFilter)
+  ), [catalogueWithPro, catFilter]);
 
   const calDays = React.useMemo(() => buildCalDays(), []);
 
@@ -790,6 +1021,7 @@ function AppProvider({ children }) {
     isAccueil: screen === "accueil", isServices: screen === "services", isPros: screen === "pros",
     isProfil: screen === "profil", isService: screen === "service", isComment: screen === "comment",
     isLogin: screen === "login", isSignup: screen === "signup", isReserver: screen === "reserver",
+    isPanier: screen === "panier",
     isPaiement: screen === "paiement", isConfirm: screen === "confirm",
     isDashClient: screen === "dashclient",
     isDashPro: screen === "dashpro", isAdmin: screen === "admin",
@@ -817,9 +1049,10 @@ function AppProvider({ children }) {
     clientStats,
     annulerReservation,
     laisserAvisSurReservation,
-    selectedProReviewableReservation,
+    canReviewSelectedPro,
     laisserAvisSurProfil,
     laisserAvisMutation,
+    laisserAvisProfilMutation,
     reservationsPro,
     reservationsProLoading: agendaProQuery.isLoading,
     reservationsProError: agendaProQuery.isError,
@@ -881,6 +1114,11 @@ function AppProvider({ children }) {
     selectedProId, setSelectedProId,
     selectedReservationId, setSelectedReservationId,
     selectedReservationMontant, setSelectedReservationMontant,
+    selectedReservationIds, checkoutSummary,
+    panier, panierCount, panierTotal,
+    ajouterAuPanier, retirerDuPanier, viderPanier, validerPanier,
+    panierCheckoutPending, panierCheckoutError,
+    setPanierCheckoutError,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

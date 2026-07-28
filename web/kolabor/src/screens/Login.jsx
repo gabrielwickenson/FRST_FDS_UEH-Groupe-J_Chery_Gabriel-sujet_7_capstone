@@ -14,8 +14,11 @@ function Login() {
     try {
       const user = await login({ email, motDePasse });
       const role = (user?.["rôle"] || user?.role || "").toString().toUpperCase();
+      // "PRESTATAIRE" ne contient pas la sous-chaîne "PRO" (P-R-E-S-...) :
+      // role.includes("PRO") était donc toujours faux et envoyait tous les
+      // comptes pro vers le tableau de bord client après connexion.
       if (role.includes("ADMIN")) navigateTo("admin");
-      else if (role.includes("PRO")) navigateTo("dashpro");
+      else if (role.includes("PRESTATAIRE")) navigateTo("dashpro");
       else navigateTo("dashclient");
     } catch {
       // authError est déjà renseigné par le contexte
@@ -138,14 +141,9 @@ function Login() {
           <input className="k308" type="email" required placeholder="vous@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
-          <div className="k309">
-            <label className="k310">
-              Mot de passe
-            </label>
-            <span className="k311">
-              Oublié ?
-            </span>
-          </div>
+          <label className="k310">
+            Mot de passe
+          </label>
           <input className="k308" type="password" required placeholder="••••••••" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} />
         </div>
         <label className="k186">
@@ -156,15 +154,6 @@ function Login() {
         </label>
         <button className="k313" type="submit" disabled={authLoading}>
           {authLoading ? "Connexion..." : "Se connecter"}
-        </button>
-        <div className="k314">
-          <span className="k315"></span>
-          ou
-          <span className="k315"></span>
-        </div>
-        <button className="k316" type="button" disabled>
-          <i className="icon fa-brands fa-google" style={{fontSize: "18px"}}></i>
-          Continuer avec Google
         </button>
       </form>
       <p className="k317">
