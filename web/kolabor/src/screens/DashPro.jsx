@@ -2,14 +2,6 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 
 function DashPro() {
-  // Bascule entre "Demandes reçues" (uniquement EN_ATTENTE, avec boutons
-  // accepter/refuser) et la liste complète de tous les clients qui ont
-  // réservé avec ce pro (tous statuts), sans jamais quitter /dashpro — le
-  // lien "Mes réservations (client)" ci-dessous sert à un usage différent
-  // (le pro réserve LUI-MÊME un service ailleurs en tant que client) et ne
-  // doit pas être confondu avec "voir qui a réservé avec moi".
-  const [showAllClients, setShowAllClients] = React.useState(false);
-
   const {
     calDays,
     isRoleClient,
@@ -104,13 +96,34 @@ function DashPro() {
     me,
     reservationsPro,
     reservationsProLoading,
+    reservationsProError,
+    reservationsProErrorDetail,
     demandesEnAttente,
     proStats,
     proRevenueWeek,
+    mesAvis,
     accepterDemande,
     refuserDemande,
+    terminerPrestation,
   } = useApp();
-  const maxRevenue = Math.max(1, ...proRevenueWeek.map((d) => d.montant));
+  // Tout est calculé automatiquement depuis les données réelles, avec repli :
+  // si l'endpoint /statistiques ne répond pas (ou pas encore), chaque chiffre
+  // est recalculé côté client à partir des réservations et avis chargés.
+  const estPaye = (r) => r.statut === "PAYEE" || r.statut === "EN_COURS" || r.statut === "TERMINEE";
+  // "Mes clients" = toutes les demandes de service en base (table
+  // reservation) qui ne sont pas annulées/refusées — payées ou non. Seuls
+  // les REVENUS restent calculés sur les réservations payées.
+  const mesClients = reservationsPro.filter((r) => r.statut !== "ANNULEE" && r.statut !== "REFUSEE");
+  const revenusCalcules = reservationsPro.filter(estPaye).reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const revenusAffiches = proStats.totalRevenus ?? proStats.revenus ?? proStats.revenuTotal ?? proStats.revenu ?? revenusCalcules;
+  const nbAvis = proStats.nombreAvis ?? mesAvis.length;
+  const noteCalculee = mesAvis.length
+    ? (mesAvis.reduce((s, a) => s + (Number(a.note) || 0), 0) / mesAvis.length).toFixed(1)
+    : null;
+  // Si le backend renvoie 0 (moyenne jamais recalculée) alors que des avis
+  // existent, la moyenne est recalculée automatiquement depuis les avis.
+  const noteBackend = proStats.noteMoyenne ?? proStats.moyenneNotes ?? proStats.note;
+  const noteAffichee = (Number(noteBackend) > 0 ? noteBackend : null) ?? noteCalculee ?? "—";
   return (
     <React.Fragment>
   <div className="k424">
@@ -145,15 +158,6 @@ function DashPro() {
           <i className="icon fa-solid fa-calendar-days" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Disponibilités
         </div>
-        <div className="k490" style={{cursor: "pointer"}} onClick={() => setShowAllClients(false)}>
-          <span className="k491">
-            <i className="icon fa-solid fa-heart-pulse" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
-            Demandes reçues
-          </span>
-          <span className="k492">
-            {demandesEnAttente.length}
-          </span>
-        </div>
         <div className="k430" onClick={nav.revenus}>
           <i className="icon fa-solid fa-credit-card" style={{fontSize: "18px", color: "#9CA3AF"}}></i>
           Revenus
@@ -168,7 +172,7 @@ function DashPro() {
       <div className="k190">
         <div>
           <h1 className="k493">
-            Bonjour, {me.nom.split(" ")[0] || "vous"} 👋
+            Bonjour, {me.nom.split(" ")[0] || "vous"} 
           </h1>
           <p className="k494">
             Voici votre activité cette semaine.
@@ -181,7 +185,7 @@ function DashPro() {
             Revenus
           </div>
           <div className="k496">
-            {proStats.revenus ?? proStats.revenuTotal ?? proStats.revenu ?? 0}
+            {revenusAffiches}
             <span className="k497">
               Gdes
             </span>
@@ -189,27 +193,16 @@ function DashPro() {
         </div>
         <div className="k434">
           <div className="k15">
-            Demandes en attente
-          </div>
-          <div className="k499">
-            {demandesEnAttente.length}
-          </div>
-          <div className="k500">
-            À traiter
-          </div>
-        </div>
-        <div className="k434">
-          <div className="k15">
             Note moyenne
           </div>
           <div className="k499">
-            {proStats.moyenneNotes ?? proStats.note ?? "—"}
+            {noteAffichee}
             <span className="k501">
               ★
             </span>
           </div>
           <div className="k502">
-            {proStats.nombreAvis ?? 0} avis
+            {nbAvis} avis
           </div>
         </div>
         <div className="k434">
@@ -228,18 +221,17 @@ function DashPro() {
         <div className="k443">
           <div className="k504">
             <h2 className="k505">
-              {showAllClients ? "Tous mes clients" : "Demandes reçues"}
+              Mes clients
             </h2>
-            <span className="k506" style={{cursor: "pointer"}} onClick={() => setShowAllClients((v) => !v)}>
-              {showAllClients ? "Voir les demandes" : "Tout voir"}
-            </span>
           </div>
           <div className="k248">
             {reservationsProLoading ? (
 <p style={{color: "#6B7280"}}>Chargement…</p>
-) : (showAllClients ? reservationsPro : demandesEnAttente).length === 0 ? (
-<p style={{color: "#6B7280"}}>{showAllClients ? "Aucun client pour le moment." : "Aucune demande en attente."}</p>
-) : (showAllClients ? reservationsPro : demandesEnAttente).map((r) => (
+) : reservationsProError ? (
+<p style={{color: "#B91C1C"}}>Erreur serveur : {reservationsProErrorDetail || "inconnue"}</p>
+) : mesClients.length === 0 ? (
+<p style={{color: "#6B7280"}}>Aucune réservation en base pour ce compte prestataire.</p>
+) : mesClients.map((r) => (
 <div key={r.key} className="k507">
               <span className="k508">
                 {(r.clientNom || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
@@ -261,26 +253,20 @@ function DashPro() {
                   <i className="icon fa-solid fa-xmark" style={{fontSize: "15px", color: "currentColor"}}></i>
                 </button>
               </div>
+) : r.statut === "ACCEPTEE" || r.statut === "PAYEE" || r.statut === "EN_COURS" ? (
+<div style={{display: "flex", alignItems: "center", gap: 8}}>
+                <span className="k447">{r.statutLabel}</span>
+                <button
+                  style={{background: "#139356", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer"}}
+                  onClick={() => terminerPrestation(r.id)}
+                  title="Marquer la prestation comme terminée (comptée dans les revenus)"
+                >
+                  Terminer
+                </button>
+              </div>
 ) : (
 <span className="k447">{r.statutLabel}</span>
 )}
-            </div>
-))}
-          </div>
-        </div>
-        <div className="k443">
-          <h2 className="k514">
-            Revenus (7 jours)
-          </h2>
-          <div className="k515">
-            {proRevenueWeek.length === 0 ? (
-<p style={{color: "#6B7280"}}>Pas encore de données.</p>
-) : proRevenueWeek.map((d, __i) => (
-<div key={__i} className="k516">
-              <div className="k517" style={{height: `${Math.max(4, (d.montant / maxRevenue) * 100)}px`}} title={`${d.montant} Gdes`}></div>
-              <span className="k518">
-                {d.jour}
-              </span>
             </div>
 ))}
           </div>

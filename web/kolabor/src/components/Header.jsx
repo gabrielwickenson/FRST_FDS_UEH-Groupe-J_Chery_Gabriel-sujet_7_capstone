@@ -62,7 +62,7 @@ function Header() {
       </button>
       {isAuthenticated ? (
 <React.Fragment>
-      <button className="k795" onClick={() => navigateTo(isAdmin ? "admin" : isPro ? "dashpro" : "dashclient")}>
+      <button className="k795" onClick={() => navigateTo(isAdmin ? "administration" : isPro ? "dashpro" : "dashclient")}>
         {me.nom || "Mon compte"}
       </button>
       <button className="k796" onClick={handleLogout}>

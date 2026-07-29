@@ -94,9 +94,6 @@ function Footer() {
         <span className="k805" onClick={nav.legal}>
           Cookies
         </span>
-        <span className="k805" onClick={nav.admin}>
-          Espace admin
-        </span>
       </div>
     </div>
   </div>

@@ -445,7 +445,7 @@ function Accueil() {
       {featured.map((p, __i) => (
 <button key={p.id ?? __i} className="k71" onClick={p.open}>
   <div className="k72">
-    <img className="k73" src={img(`pcover-${p.id}`, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
+    <img className="k73" src={p.photoUrl || img(`pcover-${p.id}`, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
     {p.popular ? (
 <React.Fragment>
       <span className="k74">
@@ -455,9 +455,13 @@ function Accueil() {
 ) : null}
   </div>
   <div className="k75">
-    <span className="k76" style={{background: p.avatar}}>
+    {p.photoUrl ? (
+<img src={p.photoUrl} alt="" className="k76" style={{objectFit: "cover"}} />
+) : (
+<span className="k76" style={{background: p.avatar}}>
       {p.initials}
     </span>
+)}
     <div className="k77">
       <span className="k46">
         {p.name}

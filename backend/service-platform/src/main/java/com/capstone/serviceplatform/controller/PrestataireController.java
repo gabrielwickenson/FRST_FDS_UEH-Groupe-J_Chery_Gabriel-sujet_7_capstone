@@ -128,19 +128,28 @@ public class PrestataireController {
                     .body(Map.of("error", "Prestataire non trouvé"));
         }
 
-        // --- Logique métier inchangée ---
-        List<Reservation> terminees = reservationRepository.findByPrestataireIdAndStatut(id, "TERMINEE");
-        BigDecimal totalRevenus = terminees.stream()
+        // --- Revenus : toute réservation où l'argent a effectivement changé
+        // de main (payée, en cours après paiement, ou terminée), à
+        // l'exclusion des réservations annulées. Auparavant on ne comptait
+        // que le statut TERMINEE, ce qui ignorait les réservations payées
+        // mais pas encore marquées terminées par le prestataire.
+        List<Reservation> toutes = reservationRepository.findByPrestataireId(id);
+        List<String> statutsPayes = Arrays.asList("PAYEE", "EN_COURS", "TERMINEE");
+        BigDecimal totalRevenus = toutes.stream()
+                .filter(r -> statutsPayes.contains(r.getStatut()))
                 .map(Reservation::getMontant)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        int nbPrestations = terminees.size();
+        long nbTerminees = toutes.stream().filter(r -> "TERMINEE".equals(r.getStatut())).count();
         Double moyenne = prestataire.getMoyenneNotes() != null ? prestataire.getMoyenneNotes().doubleValue() : 0.0;
+        int nombreAvis = avisRepository.findByPrestataireId(id).size();
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalRevenus", totalRevenus);
-        stats.put("nombrePrestations", nbPrestations);
+        stats.put("nombrePrestations", toutes.size());
+        stats.put("nombreTerminees", nbTerminees);
         stats.put("noteMoyenne", moyenne);
+        stats.put("nombreAvis", nombreAvis);
 
         return ResponseEntity.ok(stats);
     }
@@ -410,26 +419,36 @@ public class PrestataireController {
                     .body(Map.of("error", "Prestataire non trouvé"));
         }
 
-        // 4. Calculer les revenus des 7 derniers jours
-        List<DailyRevenue> result = new ArrayList<>();
+        // 4. Revenus des 7 derniers jours, fenêtre se terminant AUJOURD'HUI.
+        // On regroupe par DATE DE PAIEMENT (datePaiement, renseignée lors de
+        // POST /reservations/{id}/paiement) et non par dateHeure : la
+        // dateHeure est la date du rendez-vous, souvent future, ce qui
+        // laissait le graphe éternellement à zéro même après des paiements
+        // réels. Repli sur dateHeure pour les anciens paiements enregistrés
+        // avant l'ajout de la colonne datePaiement. Libellés de jour fixes
+        // (indépendants de la locale du JVM).
+        String[] joursAbbr = {"lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."};
+        List<String> statutsPayes = Arrays.asList("PAYEE", "EN_COURS", "TERMINEE");
         LocalDate today = LocalDate.now();
-        SimpleDateFormat sdf = new SimpleDateFormat("EEE", Locale.FRENCH);
 
+        List<Reservation> payees = reservationRepository.findByPrestataireId(id).stream()
+                .filter(r -> statutsPayes.contains(r.getStatut()))
+                .toList();
+
+        List<DailyRevenue> result = new ArrayList<>();
         for (int i = 6; i >= 0; i--) {
             LocalDate date = today.minusDays(i);
-            LocalDateTime startOfDay = date.atStartOfDay();
-            LocalDateTime endOfDay = date.atTime(23, 59, 59);
 
-            List<Reservation> reservations = reservationRepository.findByPrestataireIdAndStatutAndDateHeureBetween(
-                    id, "TERMINEE", startOfDay, endOfDay
-            );
-
-            BigDecimal total = reservations.stream()
+            BigDecimal total = payees.stream()
+                    .filter(r -> {
+                        LocalDateTime effective = r.getDatePaiement() != null ? r.getDatePaiement() : r.getDateHeure();
+                        return effective != null && effective.toLocalDate().equals(date);
+                    })
                     .map(Reservation::getMontant)
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            String dayLabel = sdf.format(Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant()));
+            String dayLabel = joursAbbr[date.getDayOfWeek().getValue() - 1];
             result.add(new DailyRevenue(dayLabel, total));
         }
 

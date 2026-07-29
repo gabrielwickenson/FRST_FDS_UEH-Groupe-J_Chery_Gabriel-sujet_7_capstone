@@ -22,15 +22,18 @@ public class Avis {
     // pour les avis issus d'une réservation, où il est recopié depuis
     // reservation.prestataire) afin de pouvoir retrouver tous les avis d'un
     // prestataire sans dépendre de la présence d'une réservation.
+    // Typé User (voir Reservation.java) : un compte présent dans les deux
+    // tables filles (client + prestataire) est matérialisé comme Client par
+    // Hibernate, ce qui cassait un champ typé Prestataire.
     @ManyToOne
     @JoinColumn(name = "prestataire_id", nullable = true)
-    private Prestataire prestataire;
+    private User prestataire;
 
     // Auteur de l'avis (le client, ou un compte PRESTATAIRE agissant comme
     // client).
     @ManyToOne
     @JoinColumn(name = "client_id", nullable = true)
-    private Client client;
+    private User client;
 
     private Integer note;
     private String commentaire;
@@ -53,19 +56,19 @@ public class Avis {
         this.reservation = reservation;
     }
 
-    public Prestataire getPrestataire() {
+    public User getPrestataire() {
         return prestataire;
     }
 
-    public void setPrestataire(Prestataire prestataire) {
+    public void setPrestataire(User prestataire) {
         this.prestataire = prestataire;
     }
 
-    public Client getClient() {
+    public User getClient() {
         return client;
     }
 
-    public void setClient(Client client) {
+    public void setClient(User client) {
         this.client = client;
     }
 

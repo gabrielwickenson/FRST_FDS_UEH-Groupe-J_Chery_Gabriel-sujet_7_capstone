@@ -7,17 +7,18 @@ function Login() {
   const { login, authLoading, authError, setAuthError } = useAuth();
   const [email, setEmail] = React.useState("");
   const [motDePasse, setMotDePasse] = React.useState("");
+  const [rememberMe, setRememberMe] = React.useState(true);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setAuthError("");
     try {
-      const user = await login({ email, motDePasse });
+      const user = await login({ email, motDePasse, rememberMe });
       const role = (user?.["rôle"] || user?.role || "").toString().toUpperCase();
       // "PRESTATAIRE" ne contient pas la sous-chaîne "PRO" (P-R-E-S-...) :
       // role.includes("PRO") était donc toujours faux et envoyait tous les
       // comptes pro vers le tableau de bord client après connexion.
-      if (role.includes("ADMIN")) navigateTo("admin");
+      if (role.includes("ADMIN")) navigateTo("administration");
       else if (role.includes("PRESTATAIRE")) navigateTo("dashpro");
       else navigateTo("dashclient");
     } catch {
@@ -123,7 +124,7 @@ function Login() {
   <div className="k302">
     <div className="k303">
       <h1 className="k304">
-        Bon retour 👋
+        Bon retour
       </h1>
       <p className="k305">
         Connectez-vous pour gérer vos réservations.
@@ -146,9 +147,11 @@ function Login() {
           </label>
           <input className="k308" type="password" required placeholder="••••••••" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} />
         </div>
-        <label className="k186">
-          <span className="k312">
-            <i className="icon fa-solid fa-check" style={{fontSize: "13px", color: "#fff"}}></i>
+        <label className="k186" onClick={() => setRememberMe((v) => !v)}>
+          <span className="k312" style={rememberMe ? undefined : {background: "transparent", borderColor: "#D1D5DB"}}>
+            {rememberMe ? (
+              <i className="icon fa-solid fa-check" style={{fontSize: "13px", color: "#fff"}}></i>
+            ) : null}
           </span>
           Se souvenir de moi
         </label>

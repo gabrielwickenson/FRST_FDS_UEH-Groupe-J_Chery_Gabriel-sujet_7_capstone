@@ -94,6 +94,7 @@ function MesServices() {
     pros,
     featured,
     me,
+    mesServices,
   } = useApp();
   return (
     <React.Fragment>
@@ -151,57 +152,26 @@ function MesServices() {
         </div>
       </div>
       <div className="k752">
-        <div className="k753">
-          <span className="k754"></span>
+        {mesServices.length === 0 ? (
+<p style={{color: "#6B7280", padding: "16px 4px"}}>
+          Aucun service enregistré en base pour ce compte pour le moment.
+        </p>
+) : mesServices.map((s) => (
+<div key={s.id} className="k753">
+          <span className="k754" style={{background: s.tag}}></span>
           <div className="k22">
             <div className="k46">
-              Réparation de fuite d'eau
+              {s.title}
             </div>
             <div className="k78">
-              Intervention rapide · 1-2h
+              {s.cat}{s.description ? ` · ${s.description}` : ""}
             </div>
           </div>
-          <div className="k755">
-            250 Gdes
-          </div>
-          <span className="k756">
-            Actif
+          <span className={me.disponible ? "k756" : "k762"}>
+            {me.disponible ? "Actif" : "En pause"}
           </span>
         </div>
-        <div className="k753">
-          <span className="k760"></span>
-          <div className="k22">
-            <div className="k46">
-              Débouchage de canalisation
-            </div>
-            <div className="k78">
-              Intervention rapide · 1h
-            </div>
-          </div>
-          <div className="k755">
-            200 Gdes
-          </div>
-          <span className="k756">
-            Actif
-          </span>
-        </div>
-        <div className="k753">
-          <span className="k761"></span>
-          <div className="k22">
-            <div className="k46">
-              Installation sanitaire complète
-            </div>
-            <div className="k78">
-              Sur devis · demi-journée
-            </div>
-          </div>
-          <div className="k755">
-            Sur devis
-          </div>
-          <span className="k762">
-            En pause
-          </span>
-        </div>
+))}
       </div>
     </div>
   </div>

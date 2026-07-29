@@ -9,6 +9,10 @@ public class LoginRequest {
     @NotBlank(message = "Le mot de passe est obligatoire")
     private String motDePasse;
 
+    // "Se souvenir de moi" côté UI : quand true, le token JWT émis a une
+    // durée de vie beaucoup plus longue (voir JwtUtils.REMEMBER_ME_EXPIRATION_MS).
+    private boolean rememberMe;
+
     // getters/setters
     public String getEmail() {
         return email;
@@ -24,5 +28,13 @@ public class LoginRequest {
 
     public void setMotDePasse(String motDePasse) {
         this.motDePasse = motDePasse;
+    }
+
+    public boolean isRememberMe() {
+        return rememberMe;
+    }
+
+    public void setRememberMe(boolean rememberMe) {
+        this.rememberMe = rememberMe;
     }
 }

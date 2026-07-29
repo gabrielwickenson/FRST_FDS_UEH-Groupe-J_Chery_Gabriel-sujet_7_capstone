@@ -8,7 +8,6 @@ import Accueil from "./screens/Accueil.jsx";
 import Services from "./screens/Services.jsx";
 import Comment from "./screens/Comment.jsx";
 import Pros from "./screens/Pros.jsx";
-import Profil from "./screens/Profil.jsx";
 import ServiceDetail from "./screens/ServiceDetail.jsx";
 import Login from "./screens/Login.jsx";
 import Signup from "./screens/Signup.jsx";
@@ -40,7 +39,6 @@ const SCREEN_COMPONENTS = {
   services: Services,
   comment: Comment,
   pros: Pros,
-  profil: Profil,
   service: ServiceDetail,
   login: Login,
   signup: Signup,
@@ -59,7 +57,7 @@ const SCREEN_COMPONENTS = {
   contact: Contact,
   faq: Faq,
   legal: Legal,
-  admin: Admin,
+  administration: Admin,
   notfound: NotFound,
   factures: Factures,
   params: Parametres,
@@ -72,7 +70,7 @@ const SCREEN_COMPONENTS = {
 // arrive sur l'une de ces pages (URL tapée directement, lien partagé, etc.)
 // est renvoyé vers la connexion.
 const PROTECTED_SCREENS = new Set([
-  "dashclient", "dashpro", "admin", "params",
+  "dashclient", "dashpro", "administration", "params",
   "messervices", "dispos", "revenus", "factures",
 ]);
 
@@ -90,13 +88,13 @@ const ROLE_SCREENS = {
   messervices: "PRESTATAIRE",
   dispos: "PRESTATAIRE",
   revenus: "PRESTATAIRE",
-  admin: "ADMIN",
+  administration: "ADMIN",
 };
 
 function defaultScreenForRole(role) {
   const r = (role || "").toString().toUpperCase();
   if (r === "PRESTATAIRE") return "dashpro";
-  if (r === "ADMIN") return "admin";
+  if (r === "ADMIN") return "administration";
   return "dashclient";
 }
 
@@ -119,6 +117,19 @@ function AppShell() {
     isAuthenticated && (!ROLE_SCREENS[screen] || (role || "").toString().toUpperCase() === ROLE_SCREENS[screen])
   );
   const Screen = isAllowed ? (SCREEN_COMPONENTS[screen] || NotFound) : (() => null);
+
+  // L'espace admin (/#/administration) a son propre shell (barre latérale
+  // dédiée) : on n'y superpose pas l'en-tête/pied de page du site public,
+  // pour une interface d'administration à part entière plutôt qu'une page
+  // de plus dans le site marketing.
+  if (screen === "administration") {
+    return (
+      <div className="app-shell app-shell--admin">
+        <Screen />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <Header />

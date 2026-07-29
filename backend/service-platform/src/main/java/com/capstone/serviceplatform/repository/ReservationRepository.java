@@ -13,11 +13,22 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByClientId(Long clientId);
     List<Reservation> findByPrestataireId(Long prestataireId);
     List<Reservation> findByPrestataireIdAndStatut(Long prestataireId, String statut);
+    // Vue plateforme (admin) : toutes les réservations tous prestataires
+    // confondus, filtrées par statut.
+    List<Reservation> findByStatutIn(List<String> statuts);
 
     @Query("SELECT r FROM Reservation r WHERE r.prestataire.id = :prestataireId AND r.statut = :statut AND r.dateHeure BETWEEN :start AND :end")
     List<Reservation> findByPrestataireIdAndStatutAndDateHeureBetween(
             @Param("prestataireId") Long prestataireId,
             @Param("statut") String statut,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("SELECT r FROM Reservation r WHERE r.prestataire.id = :prestataireId AND r.statut IN :statuts AND r.dateHeure BETWEEN :start AND :end")
+    List<Reservation> findByPrestataireIdAndStatutInAndDateHeureBetween(
+            @Param("prestataireId") Long prestataireId,
+            @Param("statuts") List<String> statuts,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );

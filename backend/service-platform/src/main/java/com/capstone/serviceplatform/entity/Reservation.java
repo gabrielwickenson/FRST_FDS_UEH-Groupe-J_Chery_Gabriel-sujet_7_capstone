@@ -11,13 +11,20 @@ public class Reservation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Références typées User (classe mère) et non Client/Prestataire : avec
+    // l'héritage JOINED, un compte peut avoir une ligne dans LES DEUX tables
+    // filles (un pro qui réserve aussi en tant que client). Hibernate
+    // matérialise alors ce compte comme Client, et un champ typé Prestataire
+    // provoquait "Impossible de définir la valeur de type [...Client] :
+    // 'Reservation.prestataire' (setter)" — cassant toutes les requêtes de
+    // réservations côté pro. Typé User, n'importe quel sous-type convient.
     @ManyToOne
     @JoinColumn(name = "client_id", nullable = false)
-    private Client client;
+    private User client;
 
     @ManyToOne
     @JoinColumn(name = "prestataire_id", nullable = false)
-    private Prestataire prestataire;
+    private User prestataire;
 
     @ManyToOne
     @JoinColumn(name = "service_id", nullable = false)
@@ -27,6 +34,11 @@ public class Reservation {
     private String adresse;
     private String statut;
     private BigDecimal montant;
+    // Date effective du paiement (renseignée par POST /{id}/paiement). La
+    // dateHeure est la date de la PRESTATION (souvent future) : les revenus
+    // "des 7 derniers jours" doivent se baser sur le moment où l'argent est
+    // encaissé, pas sur la date du rendez-vous.
+    private LocalDateTime datePaiement;
 
     // getters et setters (générez-les)
     public Long getId() {
@@ -37,19 +49,19 @@ public class Reservation {
         this.id = id;
     }
 
-    public Client getClient() {
+    public User getClient() {
         return client;
     }
 
-    public void setClient(Client client) {
+    public void setClient(User client) {
         this.client = client;
     }
 
-    public Prestataire getPrestataire() {
+    public User getPrestataire() {
         return prestataire;
     }
 
-    public void setPrestataire(Prestataire prestataire) {
+    public void setPrestataire(User prestataire) {
         this.prestataire = prestataire;
     }
 
@@ -91,5 +103,13 @@ public class Reservation {
 
     public void setMontant(BigDecimal montant) {
         this.montant = montant;
+    }
+
+    public LocalDateTime getDatePaiement() {
+        return datePaiement;
+    }
+
+    public void setDatePaiement(LocalDateTime datePaiement) {
+        this.datePaiement = datePaiement;
     }
 }

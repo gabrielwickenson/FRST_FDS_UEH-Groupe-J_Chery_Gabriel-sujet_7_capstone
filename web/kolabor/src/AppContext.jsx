@@ -5,6 +5,7 @@ import * as servicesApi from "./api/services.js";
 import * as prestatairesApi from "./api/prestataires.js";
 import * as usersApi from "./api/users.js";
 import * as reservationsApi from "./api/reservations.js";
+import * as adminApi from "./api/admin.js";
 import { field, getUserId, toArray } from "./utils/field.js";
 import { useAuth } from "./AuthContext.jsx";
 
@@ -52,15 +53,6 @@ const FAQ_BASE = [
 const JOURS_BASE = [
   { name: "Lundi", open: true }, { name: "Mardi", open: true }, { name: "Mercredi", open: true },
   { name: "Jeudi", open: true }, { name: "Vendredi", open: true }, { name: "Samedi", open: true }, { name: "Dimanche", open: false },
-];
-
-const ADMIN_USERS_BASE = [
-  { name: "Sophie Martin", email: "sophie.martin@email.ht", role: "Client", city: "Delmas", status: "Actif", color: "#139356", initials: "SM" },
-  { name: "Marc Fontaine", email: "marc.fontaine@email.ht", role: "Professionnel", city: "Pétion-Ville", status: "Vérifié", color: "#19355F", initials: "MF" },
-  { name: "Ricardo Joseph", email: "ricardo.j@email.ht", role: "Client", city: "Carrefour", status: "Actif", color: "#7C3AED", initials: "RJ" },
-  { name: "Naïka Joseph", email: "naika.joseph@email.ht", role: "Professionnel", city: "Delmas", status: "En attente", color: "#0F7A48", initials: "NJ" },
-  { name: "Gladys Charles", email: "gladys.c@email.ht", role: "Professionnel", city: "Cap-Haïtien", status: "Vérifié", color: "#EC4899", initials: "GC" },
-  { name: "Wesley Dorvil", email: "wesley.d@email.ht", role: "Client", city: "Port-au-Prince", status: "Suspendu", color: "#2563EB", initials: "WD" },
 ];
 
 const CONVS_BASE = [
@@ -182,7 +174,7 @@ function AppProvider({ children }) {
   ), [panier]);
   const panierCount = panier.length;
 
-  const { isAuthenticated, isClient, isPro: isProRole, userId: authUserId, user: authUser } = useAuth();
+  const { isAuthenticated, isClient, isPro: isProRole, isAdmin: isAdminRole, userId: authUserId, user: authUser } = useAuth();
 
   // Valide le panier : crée une réservation par article (le backend n'a pas
   // d'endpoint de réservation groupée), en boucle séquentielle pour rester
@@ -291,6 +283,7 @@ function AppProvider({ children }) {
       telephone: field(u, "téléphone", "telephone") || field(authUser, "téléphone", "telephone") || "",
       tarifHoraire: field(u, "tarifHoraire") ?? "",
       competences: field(u, "compétences", "competences") || "",
+      disponible: !!field(u, "disponible"),
       zoneIntervention: field(u, "zoneIntervention") || "",
       bio: field(u, "bio") || "",
       // NB: `field(u, "photo")` (l'URL publique /uploads/... renvoyée par le
@@ -376,12 +369,12 @@ function AppProvider({ children }) {
 
   const nav = React.useMemo(() => ({
     accueil: mk("accueil"), services: mk("services"), pros: mk("pros"),
-    profil: mk("profil"), service: mk("service"), comment: mk("comment"),
+    service: mk("service"), comment: mk("comment"),
     login: mk("login"), signup: mk("signup"), reserver: mk("reserver"),
     panier: mk("panier"),
     paiement: mk("paiement"), confirm: mk("confirm"),
     dashclient: mk("dashclient"),
-    dashpro: mk("dashpro"), admin: mk("admin"), catalogue: mk("catalogue"),
+    dashpro: mk("dashpro"), administration: mk("administration"), catalogue: mk("catalogue"),
     prolanding: mk("prolanding"),
     tousServices: () => { setCatFilterState("Tous"); go("catalogue"); },
     apropos: mk("apropos"), tarifs: mk("tarifs"), blog: mk("blog"),
@@ -508,7 +501,11 @@ function AppProvider({ children }) {
       verified: true,
       available: !!field(p, "disponible"),
       popular: false,
-      open: () => { setSelectedProId(id); go("profil"); },
+      photoUrl: field(p, "photo") || "",
+      bio: field(p, "bio") || "",
+      // La page dédiée /#/profil a été retirée : voir le détail d'un pro
+      // (et le laisser un avis) se fait maintenant en place sur /pros.
+      open: () => { setSelectedProId(id); go("pros"); },
     };
   }), [rawPros]);
 
@@ -668,14 +665,17 @@ function AppProvider({ children }) {
 
   const canReviewSelectedPro = isAuthenticated && !!selectedProId && String(selectedProId) !== String(authUserId);
 
-  function laisserAvisSurProfil(note, commentaire) {
+  function laisserAvisSurProfil(note, commentaire, callbacks) {
     if (!selectedProId || !authUserId) return;
-    laisserAvisProfilMutation.mutate({
-      prestataireId: selectedProId,
-      note,
-      commentaire: commentaire || "",
-      clientId: authUserId,
-    });
+    laisserAvisProfilMutation.mutate(
+      {
+        prestataireId: selectedProId,
+        note,
+        commentaire: commentaire || "",
+        clientId: authUserId,
+      },
+      callbacks
+    );
   }
 
   // PUT /reservations/{id}/statut est réservé aux PRESTATAIRES (vérification
@@ -736,28 +736,115 @@ function AppProvider({ children }) {
     reservationsPro.filter((r) => r.statut === "EN_ATTENTE")
   ), [reservationsPro]);
 
+  // Polling : les statistiques et le graphe se mettent à jour tout seuls
+  // quand un client réserve/paie ailleurs, sans recharger la page.
   const proStatsQuery = useQuery({
     queryKey: ["prestataires", authUserId, "statistiques"],
     queryFn: () => prestatairesApi.getStatistiques(authUserId),
     enabled: isAuthenticated && isProRole && !!authUserId,
+    refetchInterval: 15000,
   });
 
   const proRevenueWeekQuery = useQuery({
     queryKey: ["prestataires", authUserId, "revenue-week"],
     queryFn: () => prestatairesApi.getRevenueWeek(authUserId),
     enabled: isAuthenticated && isProRole && !!authUserId,
+    refetchInterval: 15000,
   });
 
   const proStats = proStatsQuery.data || {};
   const proRevenueWeek = React.useMemo(() => (
     toArray(proRevenueWeekQuery.data).map((d, i) => ({
       jour: field(d, "jour", "day") || ["L", "M", "M", "J", "V", "S", "D"][i] || "",
-      montant: Number(field(d, "montant", "revenu", "value")) || 0,
+      montant: Number(field(d, "montant", "revenu", "value", "amount")) || 0,
     }))
   ), [proRevenueWeekQuery.data]);
 
-  const accepterDemande = (id) => updateStatutMutation.mutate({ id, statut: "ACCEPTEE", prestataireId: authUserId }, { onSuccess: () => agendaProQuery.refetch() });
-  const refuserDemande = (id) => updateStatutMutation.mutate({ id, statut: "REFUSEE", prestataireId: authUserId }, { onSuccess: () => agendaProQuery.refetch() });
+  const refreshProDashboard = () => {
+    agendaProQuery.refetch();
+    proStatsQuery.refetch();
+    proRevenueWeekQuery.refetch();
+  };
+  const accepterDemande = (id) => updateStatutMutation.mutate({ id, statut: "ACCEPTEE", prestataireId: authUserId }, { onSuccess: refreshProDashboard });
+  const refuserDemande = (id) => updateStatutMutation.mutate({ id, statut: "REFUSEE", prestataireId: authUserId }, { onSuccess: refreshProDashboard });
+  // Marquer une prestation comme terminée : elle bascule alors dans les
+  // revenus (statut TERMINEE = payé/encaissé) et tout le tableau de bord se
+  // rafraîchit immédiatement.
+  const terminerPrestation = (id) => updateStatutMutation.mutate({ id, statut: "TERMINEE", prestataireId: authUserId }, { onSuccess: refreshProDashboard });
+
+  // ---- Page "Mes services" (espace pro) : tout vient de la base de données ----
+  // Deux sources réelles, fusionnées :
+  //   1. les services du catalogue (GET /api/services) dont la catégorie
+  //      correspond à la compétence déclarée par CE prestataire ;
+  //   2. les services effectivement réservés chez ce prestataire (GET
+  //      /api/reservations/me/prestataire) — garantit que tout service qu'un
+  //      client a réellement commandé chez lui apparaît, même si la
+  //      correspondance compétence/catégorie ne le trouvait pas.
+  const mesServices = React.useMemo(() => {
+    // La compétence/catégorie du pro connecté est lue depuis DEUX sources en
+    // base, pour couvrir tous les comptes : son profil (GET /users/{id}) et,
+    // en repli, sa fiche dans l'annuaire public des prestataires (GET
+    // /prestataires/recherche) — certains comptes n'exposent leur métier que
+    // par l'une des deux routes.
+    const fromDirectory = allPros.find((p) => String(p.id) === String(authUserId));
+    const competencesEffectives = me.competences || (fromDirectory && fromDirectory.cat) || "";
+    // `competences` peut contenir une catégorie ("Plomberie", "Sécurité"), un
+    // nom de service précis, ou plusieurs valeurs séparées par des virgules —
+    // selon la façon dont le compte a été créé. On découpe puis on compare
+    // chaque fragment à la fois à la CATÉGORIE et au TITRE de chaque service
+    // du catalogue, pour couvrir tous les formats existants en base.
+    const fragments = competencesEffectives
+      .split(/[,;\/|]+/)
+      .map((x) => normalize(x.trim()))
+      .filter(Boolean);
+    const matchesPro = (s) => {
+      const cat = normalize(s.cat);
+      const title = normalize(s.title);
+      return fragments.some((f) => (
+        cat.includes(f) || f.includes(cat) || title.includes(f) || f.includes(title)
+      ));
+    };
+    const byKey = new Map();
+    services.forEach((s) => {
+      if (fragments.length && matchesPro(s)) {
+        byKey.set(normalize(s.title), s);
+      }
+    });
+    reservationsPro.forEach((r, i) => {
+      const k = normalize(r.titre);
+      if (!k || byKey.has(k)) return;
+      const fromCatalog = services.find((s) => normalize(s.title) === k);
+      byKey.set(k, fromCatalog || {
+        id: `resa-${r.key ?? i}`,
+        cat: competencesEffectives || "Service",
+        title: r.titre,
+        description: "",
+        tag: colorForIndex(byKey.size),
+      });
+    });
+    return Array.from(byKey.values());
+  }, [services, me.competences, reservationsPro, allPros, authUserId]);
+
+  // ---- Avis reçus par le prestataire connecté (page Revenus) ----
+  const mesAvisQuery = useQuery({
+    queryKey: ["prestataires", authUserId, "avis"],
+    queryFn: () => prestatairesApi.getAvisProfil(authUserId),
+    enabled: isAuthenticated && isProRole && !!authUserId,
+    refetchInterval: 30000,
+  });
+  const mesAvis = React.useMemo(() => (
+    toArray(mesAvisQuery.data).map((a, i) => {
+      const client = field(a, "client") || {};
+      return {
+        id: field(a, "identifiant", "id") ?? i,
+        note: Number(field(a, "note")) || 0,
+        commentaire: field(a, "commentaire") || "",
+        date: field(a, "date") || "",
+        clientNom: field(client, "nom", "name") || "Client",
+        key: field(a, "identifiant", "id") ?? i,
+      };
+    })
+  ), [mesAvisQuery.data]);
 
   // ---- Disponibilités du prestataire connecté ----
   const disposQuery = useQuery({
@@ -798,11 +885,85 @@ function AppProvider({ children }) {
     deleteDisponibiliteMutation.mutate(id);
   }
 
-  // ---- Admin : litiges ouverts (seul point d'administration exposé par l'API) ----
+  // ---- Espace admin (/#/administration) : KPIs, revenus, catégories, utilisateurs, litiges ----
+  const adminEnabled = isAuthenticated && isAdminRole;
+
+  const adminKpisQuery = useQuery({
+    queryKey: ["admin", "kpis"],
+    queryFn: adminApi.getKpis,
+    enabled: adminEnabled,
+    refetchInterval: 30000,
+  });
+  const adminKpis = adminKpisQuery.data || {};
+
+  const adminRevenusMensuelsQuery = useQuery({
+    queryKey: ["admin", "revenus-mensuels"],
+    queryFn: adminApi.getRevenusMensuels,
+    enabled: adminEnabled,
+  });
+  const adminRevenusMensuels = React.useMemo(() => (
+    toArray(adminRevenusMensuelsQuery.data).map((d) => ({
+      mois: field(d, "mois") || "",
+      montant: Number(field(d, "montant")) || 0,
+    }))
+  ), [adminRevenusMensuelsQuery.data]);
+
+  const adminTopCategoriesQuery = useQuery({
+    queryKey: ["admin", "top-categories"],
+    queryFn: adminApi.getTopCategories,
+    enabled: adminEnabled,
+  });
+  const adminTopCategories = React.useMemo(() => (
+    toArray(adminTopCategoriesQuery.data).map((d, i) => ({
+      categorie: field(d, "catégorie", "categorie") || "Autre",
+      montant: Number(field(d, "montant")) || 0,
+      pourcentage: Number(field(d, "pourcentage")) || 0,
+      color: colorForIndex(i),
+    }))
+  ), [adminTopCategoriesQuery.data]);
+
+  const adminUsersQuery = useQuery({
+    queryKey: ["admin", "users"],
+    queryFn: adminApi.getUsers,
+    enabled: adminEnabled,
+  });
+  const adminUsers = React.useMemo(() => (
+    toArray(adminUsersQuery.data).map((u, i) => {
+      const role = (field(u, "role") || "").toString().toUpperCase();
+      const roleLabel = role === "PRESTATAIRE" ? "Professionnel" : role === "ADMIN" ? "Admin" : "Client";
+      const disponible = field(u, "disponible");
+      const status = role === "PRESTATAIRE" ? (disponible ? "Actif" : "En pause") : "Actif";
+      const nom = field(u, "nom", "name") || "Utilisateur";
+      const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+      return {
+        id: field(u, "id") ?? i,
+        name: nom,
+        email: field(u, "email") || "",
+        telephone: field(u, "téléphone", "telephone") || "",
+        role: roleLabel,
+        status,
+        dateInscription: field(u, "dateInscription") || "",
+        moyenneNotes: field(u, "moyenneNotes"),
+        color: colorForIndex(i),
+        initials,
+        statusStyle: {
+          display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+          ...(status === "Actif" ? { background: "#D8F3E4", color: "#0B5C36" }
+            : status === "En pause" ? { background: "#FEF3C7", color: "#B45309" }
+            : { background: "#FEE2E2", color: "#B91C1C" }),
+        },
+        roleStyle: { fontSize: 13, fontWeight: 600, color: roleLabel === "Professionnel" ? "#139356" : roleLabel === "Admin" ? "#7C3AED" : "#6B7280" },
+      };
+    })
+  ), [adminUsersQuery.data]);
+
   const litigesOuvertsQuery = useQuery({
     queryKey: ["reservations", "litiges", "ouverts"],
     queryFn: reservationsApi.getLitigesOuverts,
-    enabled: isAuthenticated,
+    // Réservé aux ADMIN côté backend (403 sinon) : inutile d'appeler cet
+    // endpoint pour chaque client/pro connecté qui n'y a de toute façon pas
+    // accès.
+    enabled: adminEnabled,
   });
 
   const litigesOuverts = React.useMemo(() => {
@@ -897,19 +1058,6 @@ function AppProvider({ children }) {
     name: j.name, open: j.open, closed: !j.open,
     toggleStyle: { width: 44, height: 26, borderRadius: 999, position: "relative", flexShrink: 0, background: j.open ? "#139356" : "#E5E7EB" },
     knobStyle: { position: "absolute", top: 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", ...(j.open ? { right: 3 } : { left: 3 }) },
-  })), []);
-
-  const adminUsers = React.useMemo(() => ADMIN_USERS_BASE.map((u) => ({
-    ...u,
-    id: u.email,
-    statusStyle: {
-      display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700,
-      ...(u.status === "Vérifié" ? { background: "#D8F3E4", color: "#0B5C36" }
-        : u.status === "Actif" ? { background: "#DBEAFE", color: "#1E40AF" }
-        : u.status === "En attente" ? { background: "#FEF3C7", color: "#B45309" }
-        : { background: "#FEE2E2", color: "#B91C1C" }),
-    },
-    roleStyle: { fontSize: 13, fontWeight: 600, color: u.role === "Professionnel" ? "#139356" : "#6B7280" },
   })), []);
 
   // Le Signup (choix du métier du pro) utilise désormais les vraies
@@ -1024,7 +1172,7 @@ function AppProvider({ children }) {
     isPanier: screen === "panier",
     isPaiement: screen === "paiement", isConfirm: screen === "confirm",
     isDashClient: screen === "dashclient",
-    isDashPro: screen === "dashpro", isAdmin: screen === "admin",
+    isDashPro: screen === "dashpro", isAdmin: screen === "administration",
     isCatalogue: screen === "catalogue", isProLanding: screen === "prolanding",
     isApropos: screen === "apropos", isTarifs: screen === "tarifs", isBlog: screen === "blog",
     isAide: screen === "aide", isContact: screen === "contact", isFaq: screen === "faq", isLegal: screen === "legal",
@@ -1042,7 +1190,7 @@ function AppProvider({ children }) {
     services, allPros,
     prosLoading, prosError,
     selectedService,
-    selectedPro, selectedProStats, selectedProAvis,
+    selectedPro, selectedProStats, selectedProAvis, selectedProAvisQuery,
     reservationsClient,
     reservationsClientLoading: reservationsClientQuery.isLoading,
     reservationsClientError: reservationsClientQuery.isError,
@@ -1056,11 +1204,18 @@ function AppProvider({ children }) {
     reservationsPro,
     reservationsProLoading: agendaProQuery.isLoading,
     reservationsProError: agendaProQuery.isError,
+    reservationsProErrorDetail: agendaProQuery.error
+      ? `${agendaProQuery.error?.response?.status || ""} ${agendaProQuery.error?.response?.data?.error || agendaProQuery.error?.message || ""}`.trim()
+      : "",
     demandesEnAttente,
     proStats,
     proRevenueWeek,
+    mesServices,
+    mesAvis,
+    mesAvisLoading: mesAvisQuery.isLoading,
     accepterDemande,
     refuserDemande,
+    terminerPrestation,
     authUserId,
     isProRole,
     me,
@@ -1076,6 +1231,11 @@ function AppProvider({ children }) {
     litigesOuvertsLoading: litigesOuvertsQuery.isLoading,
     litigesOuvertsError: litigesOuvertsQuery.isError,
     resoudreLitige,
+    adminKpis,
+    adminKpisLoading: adminKpisQuery.isLoading,
+    adminRevenusMensuels,
+    adminTopCategories,
+    adminUsersLoading: adminUsersQuery.isLoading,
     screen,
     ...isFlags,
     catFilter,

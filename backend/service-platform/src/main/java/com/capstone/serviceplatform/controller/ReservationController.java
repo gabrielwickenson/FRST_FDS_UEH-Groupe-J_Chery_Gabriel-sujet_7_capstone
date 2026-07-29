@@ -222,8 +222,14 @@ public class ReservationController {
                     .body(Map.of("error", "Statut invalide"));
         }
 
-        // 7. Mettre à jour la réservation
+        // 7. Mettre à jour la réservation. Une prestation marquée TERMINEE
+        // compte dans les revenus : si aucune date d'encaissement n'existe
+        // encore (paiement jamais simulé), on la fixe à maintenant pour que
+        // le graphe "Revenus (7 jours)" l'enregistre au bon jour.
         reservation.setStatut(statut);
+        if ("TERMINEE".equals(statut) && reservation.getDatePaiement() == null) {
+            reservation.setDatePaiement(java.time.LocalDateTime.now());
+        }
         Reservation updated = reservationRepository.save(reservation);
 
         // 8. Notification au client
@@ -319,7 +325,7 @@ public class ReservationController {
         Reservation updated = reservationRepository.save(reservation);
 
         // 7. Notification au prestataire
-        Prestataire prestataire = reservation.getPrestataire();
+        User prestataire = reservation.getPrestataire();
         if (prestataire != null && prestataire.getFcmToken() != null && !prestataire.getFcmToken().isEmpty()) {
             try {
                 notificationService.envoyerNotification(prestataire.getFcmToken(), prestataire,
@@ -529,12 +535,16 @@ public class ReservationController {
         avis.setDate(new Date());
         avisRepository.save(avis);
 
-        // 8. Mettre à jour la moyenne du prestataire
-        Prestataire prestataire = reservation.getPrestataire();
-        List<Avis> avisList = avisRepository.findByPrestataireId(prestataire.getId());
+        // 8. Mettre à jour la moyenne du prestataire. Rechargé via le
+        // repository typé (chargement sûr même si le compte a aussi une ligne
+        // client), car setMoyenneNotes n'existe que sur Prestataire.
+        Long proId = reservation.getPrestataire().getId();
+        List<Avis> avisList = avisRepository.findByPrestataireId(proId);
         double moyenne = avisList.stream().mapToInt(Avis::getNote).average().orElse(0.0);
-        prestataire.setMoyenneNotes(BigDecimal.valueOf(moyenne));
-        prestataireRepository.save(prestataire);
+        prestataireRepository.findById(proId).ifPresent(p -> {
+            p.setMoyenneNotes(BigDecimal.valueOf(moyenne));
+            prestataireRepository.save(p);
+        });
 
         return ResponseEntity.status(HttpStatus.CREATED).body(avis);
     }
@@ -727,8 +737,10 @@ public class ReservationController {
                     .body(Map.of("error", "Vous n'êtes pas autorisé à payer cette réservation"));
         }
 
-        // 6. Simuler le paiement
+        // 6. Simuler le paiement (en gardant la date d'encaissement, utilisée
+        // par le graphe "Revenus (7 jours)" du prestataire)
         reservation.setStatut("PAYEE");
+        reservation.setDatePaiement(java.time.LocalDateTime.now());
         reservationRepository.save(reservation);
 
         return ResponseEntity.ok(Map.of("message", "Paiement simulé effectué avec " + modePaiement));

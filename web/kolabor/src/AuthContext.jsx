@@ -44,11 +44,11 @@ function AuthProvider({ children }) {
     setUser(nextUser || null);
   }, []);
 
-  const login = React.useCallback(async ({ email, motDePasse }) => {
+  const login = React.useCallback(async ({ email, motDePasse, rememberMe }) => {
     setAuthLoading(true);
     setAuthError("");
     try {
-      const data = await authApi.login({ email, motDePasse });
+      const data = await authApi.login({ email, motDePasse, rememberMe: !!rememberMe });
       const { token: t, user: u } = extractAuthPayload(data);
       persist(t, u);
       return u;
