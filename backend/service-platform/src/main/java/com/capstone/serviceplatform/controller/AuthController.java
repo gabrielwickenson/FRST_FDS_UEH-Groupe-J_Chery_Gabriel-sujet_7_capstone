@@ -86,7 +86,14 @@ public class AuthController {
             prestataire.setMoyenneNotes(BigDecimal.ZERO);
             savedUser = prestataireRepository.save(prestataire);
         }
-        else {
+        else if (request.getRole() == Role.ADMIN) {
+            // Aucun flux d'inscription public ne propose ADMIN (Signup.jsx
+            // n'offre que client/pro) : ce chemin ne sert qu'à provisionner
+            // un compte administrateur via un appel direct à l'API. Avant ce
+            // correctif, N'IMPORTE QUELLE valeur de rôle autre que CLIENT/
+            // PRESTATAIRE (y compris null ou une faute de frappe) tombait
+            // silencieusement ici et devenait ADMIN — faille de sécurité
+            // désormais fermée en exigeant explicitement Role.ADMIN.
             User user = new User();
             user.setNom(request.getNom());
             user.setEmail(request.getEmail());
@@ -96,6 +103,10 @@ public class AuthController {
             user.setDateInscription(new Date());
             user.setRole(Role.ADMIN);
             savedUser = userRepository.save(user);
+        }
+        else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Rôle invalide : CLIENT, PRESTATAIRE ou ADMIN attendu"));
         }
 
         savedUser.setMotDePasse(null);
@@ -139,7 +150,10 @@ public class AuthController {
                     .body(Map.of("error", "Mot de passe incorrect"));
         }
 
-        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
+        long expirationMs = request.isRememberMe()
+                ? JwtUtils.REMEMBER_ME_EXPIRATION_MS
+                : 259200000L; // 3 jours par défaut
+        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name(), expirationMs);
 
         Map<String, Object> response = new HashMap<>();
         response.put("id", user.getId());
