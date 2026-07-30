@@ -1,6 +1,6 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
-import { img } from "../images.js";
+import { serviceImg } from "../images.js";
 
 function ServiceDetail() {
   const {
@@ -112,16 +112,16 @@ function ServiceDetail() {
     <div className="k279">
       <div>
         <div className="k280">
-          <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt="Photo du service" style={{objectFit: "cover", borderRadius: "24px"}} />
+          <img className="k73" src={serviceImg(sv.title, sv.cat, sv.id, 800, 600)} alt="Photo du service" style={{objectFit: "cover", borderRadius: "24px"}} />
           <span className="k281">
             {sv.cat || ""}
           </span>
         </div>
         <div className="k282">
-          <img className="k283" src={img("svc-th-1", 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
-          <img className="k283" src={img("svc-th-2", 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
-          <img className="k283" src={img("svc-th-3", 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
-          <img className="k283" src={img("svc-th-4", 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
+          <img className="k283" src={serviceImg(sv.title, sv.cat, `${sv.id}-1`, 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
+          <img className="k283" src={serviceImg(sv.title, sv.cat, `${sv.id}-2`, 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
+          <img className="k283" src={serviceImg(sv.title, sv.cat, `${sv.id}-3`, 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
+          <img className="k283" src={serviceImg(sv.title, sv.cat, `${sv.id}-4`, 800, 600)} alt="Photo" style={{objectFit: "cover", borderRadius: "12px"}} />
         </div>
         <h1 className="k284">
           {sv.title || "Service"}

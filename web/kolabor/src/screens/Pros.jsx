@@ -1,7 +1,7 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
 import { useAuth } from "../AuthContext.jsx";
-import { img } from "../images.js";
+import { serviceImg } from "../images.js";
 
 // Même normalisation que Reserver.jsx : compare la catégorie du service à
 // la compétence du pro (accents/casse ignorés), pour rester cohérent avec
@@ -279,7 +279,7 @@ function Pros() {
 ) : filteredPros.map((p, __i) => (
 <div key={p.id ?? __i} className="k144">
   <div className="k205">
-    <img className="k73" src={p.photoUrl || img(`pcover-${p.id}`, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
+    <img className="k73" src={p.photoUrl || serviceImg(p.job, p.cat, p.id, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
     {p.available ? (
 <React.Fragment>
       <span className="k206">

@@ -1,6 +1,6 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
-import { img } from "../images.js";
+import { serviceImg } from "../images.js";
 
 function Catalogue() {
   const {
@@ -170,7 +170,7 @@ function Catalogue() {
     {catServices.map((sv, __i) => (
 <div key={sv.id ?? __i} className="k144">
   <div className="k145">
-    <img className="k73" src={img(`svc-${sv.id}`, 800, 600)} alt={sv.cat} style={{objectFit: "cover"}} />
+    <img className="k73" src={serviceImg(sv.title, sv.cat, sv.id, 800, 600)} alt={sv.cat} style={{objectFit: "cover"}} />
     <span className="k146" style={{color: sv.tag}}>
       {sv.cat}
     </span>

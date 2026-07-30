@@ -1,6 +1,6 @@
 import React from "react";
 import { useApp } from "../AppContext.jsx";
-import { img } from "../images.js";
+import { serviceImg } from "../images.js";
 
 function Accueil() {
   const {
@@ -134,7 +134,7 @@ function Accueil() {
         </div>
       </div>
       <div className="k17">
-        <img className="k18" src={img("kolabor-hero", 800, 600)} alt="Photo \u2014 pro en intervention" style={{objectFit: "cover", borderRadius: "28px"}} />
+        <img className="k18" src="https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=800&h=600&q=70" alt="Photo \u2014 pro en intervention" style={{objectFit: "cover", borderRadius: "28px"}} />
         <div className="k19">
           <div className="k20">
             <span className="k21">
@@ -445,7 +445,7 @@ function Accueil() {
       {featured.map((p, __i) => (
 <button key={p.id ?? __i} className="k71" onClick={p.open}>
   <div className="k72">
-    <img className="k73" src={p.photoUrl || img(`pcover-${p.id}`, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
+    <img className="k73" src={p.photoUrl || serviceImg(p.job, p.cat, p.id, 800, 600)} alt={p.name} style={{objectFit: "cover"}} />
     {p.popular ? (
 <React.Fragment>
       <span className="k74">

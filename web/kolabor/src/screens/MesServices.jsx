@@ -158,7 +158,6 @@ function MesServices() {
         </p>
 ) : mesServices.map((s) => (
 <div key={s.id} className="k753">
-          <span className="k754" style={{background: s.tag}}></span>
           <div className="k22">
             <div className="k46">
               {s.title}
