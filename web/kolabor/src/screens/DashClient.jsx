@@ -144,7 +144,7 @@ function DashClient() {
     </aside>
     <div>
       <h1 className="k229">
-        Bonjour, {me.nom.split(" ")[0] || "vous"} 👋
+        Bonjour, {me.nom.split(" ")[0] || "vous"} 
       </h1>
       <p className="k432">
         Voici un aperçu de vos réservations.
