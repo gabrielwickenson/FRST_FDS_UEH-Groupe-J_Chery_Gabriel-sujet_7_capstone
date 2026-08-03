@@ -8,17 +8,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.model.ReservationRequest
 import com.capstone.kolabor.app.data.model.Service
 import com.capstone.kolabor.app.data.model.Prestataire
@@ -36,7 +37,7 @@ import java.util.*
 @Composable
 fun BookScreen(
     onBack: () -> Unit,
-    onBookingSuccess: () -> Unit,
+    onNavigateToPayment: (Reservation) -> Unit,   // ✅ un seul callback
     prestataire: Prestataire,
     clientId: Long
 ) {
@@ -75,7 +76,7 @@ fun BookScreen(
         }
     }
 
-    // Pré-remplir le montant
+    // Pré-remplir le montant avec le tarif horaire du prestataire
     LaunchedEffect(prestataire.tarifHoraire) {
         prestataire.tarifHoraire?.let {
             montant = it.toString()
@@ -110,7 +111,7 @@ fun BookScreen(
         )
         Spacer(modifier = Modifier.height(space24))
 
-        // ✅ Sélection du service (Dropdown au lieu des chips)
+        // Sélection du service (Dropdown)
         if (services.isNotEmpty()) {
             Text("Service", style = MaterialTheme.typography.labelLarge, color = Gray600)
             Spacer(modifier = Modifier.height(space8))
@@ -266,7 +267,7 @@ fun BookScreen(
                         val result = reservationRepo.createReservation(request)
                         if (result != null) {
                             Toast.makeText(context, "Réservation créée avec succès", Toast.LENGTH_LONG).show()
-                            onBookingSuccess()
+                            onNavigateToPayment(result)   // ✅ seul callback
                         } else {
                             errorMessage = "Échec de la réservation. Vérifiez les informations."
                         }

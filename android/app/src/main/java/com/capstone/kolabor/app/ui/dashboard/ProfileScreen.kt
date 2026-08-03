@@ -41,7 +41,11 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onLogout: () -> Unit) {
+fun ProfileScreen(onLogout: () -> Unit,
+                  onNavigateToReservations: () -> Unit = {},
+                  onNavigateToNotifications: () -> Unit = {},
+                  onNavigateToPrivacy: () -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
@@ -86,8 +90,14 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             val uploadResult = userRepository.uploadPhoto(currentUserId, croppedUri)
                             if (uploadResult != null) {
                                 val refreshedUser = userRepository.getUserById(currentUserId)
-                                if (refreshedUser != null) user = refreshedUser
-                                Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                                if (refreshedUser != null) {
+                                    user = refreshedUser
+                                    // ✅ Mise à jour de la photo persistée
+                                    val newPhotoUrl = normalizePhotoUrl(refreshedUser.photo)
+                                    persistedPhotoUrl = newPhotoUrl
+                                    tokenManager.saveUserPhoto(newPhotoUrl)
+                                    Toast.makeText(context, "Photo mise à jour", Toast.LENGTH_SHORT).show()
+                                }
                             } else {
                                 Toast.makeText(context, "Erreur lors de l'upload", Toast.LENGTH_SHORT).show()
                             }
@@ -266,7 +276,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 icon = Icons.Default.Info,
                                 label = "Mes informations",
                                 subtitle = "Email, téléphone, rôle",
-                                onClick = { /* déjà visible */ }
+                                onClick = { showEditScreen = true }   // ✅ Ouvre l'écran d'édition
                             )
                             if (user!!.role == "PRESTATAIRE") {
                                 SettingsItem(
@@ -280,7 +290,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                     icon = Icons.Default.History,
                                     label = "Historique des réservations",
                                     subtitle = "Total, en cours, terminées",
-                                    onClick = { /* déjà visible */ }
+                                    onClick = onNavigateToReservations   // ✅ Navigue vers l'historique
                                 )
                             }
                         }
@@ -293,17 +303,24 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 icon = Icons.Default.Notifications,
                                 label = "Notifications",
                                 subtitle = "Gérer vos alertes",
-                                onClick = { Toast.makeText(context, "Notifications à venir", Toast.LENGTH_SHORT).show() }
+                                onClick = onNavigateToNotifications
                             )
                             SettingsItem(
                                 icon = Icons.Default.Settings,
                                 label = "Confidentialité",
-                                onClick = { Toast.makeText(context, "Confidentialité à venir", Toast.LENGTH_SHORT).show() }
+                                onClick = onNavigateToPrivacy
                             )
                             SettingsItem(
                                 icon = Icons.Default.Info,
                                 label = "Version 1.0.0",
                                 onClick = { /* rien */ }
+                            )
+                            // ✅ BOUTON DE DÉCONNEXION
+                            SettingsItem(
+                                icon = Icons.Default.Logout,
+                                label = "Déconnexion",
+                                isDestructive = true,
+                                onClick = onLogout
                             )
                         }
                     }
@@ -363,6 +380,7 @@ fun SettingsItem(
     icon: ImageVector,
     label: String,
     subtitle: String? = null,
+    isDestructive: Boolean = false,   // ← ajout
     onClick: () -> Unit
 ) {
     Row(
@@ -375,7 +393,7 @@ fun SettingsItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = NavyPrimary,
+            tint = if (isDestructive) ErrorColor else NavyPrimary,   // ← rouge si destructif
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
@@ -385,7 +403,7 @@ fun SettingsItem(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,
-                color = NavyPrimary
+                color = if (isDestructive) ErrorColor else NavyPrimary   // ← rouge si destructif
             )
             if (subtitle != null) {
                 Text(

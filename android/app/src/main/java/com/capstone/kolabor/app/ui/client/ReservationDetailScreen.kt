@@ -15,10 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.capstone.kolabor.app.data.model.Reservation
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -30,6 +33,7 @@ fun ReservationDetailScreen(
     onBack: () -> Unit,
     onCancel: () -> Unit,
     onReview: () -> Unit,
+    onPay: (Reservation) -> Unit,   // ✅ nouveau callback pour le paiement
     clientId: Long,
 ) {
     val context = LocalContext.current
@@ -39,6 +43,7 @@ fun ReservationDetailScreen(
 
     val isCancellable = reservation.statut == "EN_ATTENTE" || reservation.statut == "ACCEPTEE"
     val isReviewable = reservation.statut == "TERMINEE"
+    val isPayable = reservation.statut == "TERMINEE"   // ✅ Paiement disponible si terminée
     val statutColor = when (reservation.statut) {
         "TERMINEE" -> GreenPrimary
         "ANNULEE" -> ErrorColor
@@ -118,12 +123,23 @@ fun ReservationDetailScreen(
                             .clip(RoundedCornerShape(32.dp))
                             .background(NavyLight.copy(alpha = 0.2f))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = NavyPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        val photo = reservation.prestataire?.photo
+                        if (photo != null && photo.isNotEmpty()) {
+                            val fullUrl = normalizePhotoUrl(photo)
+                            AsyncImage(
+                                model = fullUrl,
+                                contentDescription = "Photo du prestataire",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = NavyPrimary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
@@ -221,10 +237,31 @@ fun ReservationDetailScreen(
                     }
                 }
 
+                // ✅ BOUTON PAYER (si réservation terminée)
+                if (isPayable) {
+                    Button(
+                        onClick = {
+                            onPay(reservation)   // ✅ Navigue vers l'écran de paiement
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Payment, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Payer maintenant")
+                    }
+                }
+
                 if (isReviewable) {
                     Button(
                         onClick = {
-                            showReviewSheet = true  // ✅ Ouvre le sheet
+                            showReviewSheet = true
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -259,11 +296,12 @@ fun ReservationDetailScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+
         // Bottom Sheet pour l'avis
         if (showReviewSheet) {
             ReviewBottomSheet(
                 reservationId = reservation.id,
-                clientId = clientId, // Il faut passer clientId en paramètre à ReservationDetailScreen
+                clientId = clientId,
                 prestataireNom = reservation.prestataire?.nom ?: "prestataire",
                 onDismiss = {
                     showReviewSheet = false

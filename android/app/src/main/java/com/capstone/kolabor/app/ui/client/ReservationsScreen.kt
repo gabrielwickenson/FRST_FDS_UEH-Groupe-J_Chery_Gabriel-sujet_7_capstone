@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,18 +16,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.capstone.kolabor.app.data.model.Reservation
 import com.capstone.kolabor.app.data.repository.ReservationRepository
+import com.capstone.kolabor.app.utils.normalizePhotoUrl
 import com.capstone.serviceplatform.app.ui.theme.*
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.material.icons.filled.ChevronRight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -219,7 +225,16 @@ fun ReservationCard(reservation: Reservation, onClick: () -> Unit) {
         "TERMINEE" -> GreenPrimary
         "ANNULEE" -> ErrorColor
         "ACCEPTEE", "EN_COURS" -> NavyPrimary
+        "EN_ATTENTE" -> Color(0xFFFFB800) // Jaune/ambre
         else -> Gray500
+    }
+    val statutLabel = when (reservation.statut) {
+        "EN_ATTENTE" -> "En attente"
+        "ACCEPTEE" -> "Acceptée"
+        "EN_COURS" -> "En cours"
+        "TERMINEE" -> "Terminée"
+        "ANNULEE" -> "Annulée"
+        else -> reservation.statut ?: "Inconnu"
     }
 
     Card(
@@ -230,105 +245,136 @@ fun ReservationCard(reservation: Reservation, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Ligne supérieure : service + statut
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Photo du prestataire
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(NavyLight.copy(alpha = 0.3f))
             ) {
-                Text(
-                    text = reservation.service?.nom ?: "Service inconnu",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NavyPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = statutColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = reservation.statut?.replace("_", " ") ?: "Inconnu",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statutColor,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                val photo = reservation.prestataire?.photo
+                if (photo != null && photo.isNotEmpty()) {
+                    val fullUrl = normalizePhotoUrl(photo)
+                    AsyncImage(
+                        model = fullUrl,
+                        contentDescription = "Photo du prestataire",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = NavyPrimary,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Prestataire
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+            // Contenu principal
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = Gray500,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+                // Service + statut (badge)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = reservation.service?.nom ?: "Service inconnu",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NavyPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    // ✅ Badge de statut
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = statutColor.copy(alpha = 0.15f),
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .height(24.dp)
+                    ) {
+                        Text(
+                            text = statutLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statutColor,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
                 Text(
-                    text = reservation.prestataire?.nom ?: "Prestataire inconnu",
+                    text = "Prestataire: ${reservation.prestataire?.nom ?: "Non spécifié"}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Gray700
                 )
-            }
 
-            // Date et adresse
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
-                        tint = Gray500,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = Gray500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = formatDate(reservation.dateHeure),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Gray600
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Gray500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = reservation.adresse?.take(20) ?: "N/A",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Gray600
+                        )
+                    }
+                }
+
+                // Montant
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     Text(
-                        text = formatDate(reservation.dateHeure),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray600
+                        text = "${reservation.montant?.toString() ?: "0"} Gdes",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NavyPrimary,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = Gray500,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = reservation.adresse?.take(20) ?: "N/A",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray600
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Montant
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${reservation.montant?.toString() ?: "0"} Gdes",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NavyPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            // ✅ Flèche indiquant le clic
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Voir le détail",
+                tint = Gray400,
+                modifier = Modifier
+                    .size(24.dp)
+                    .padding(start = 8.dp)
+            )
         }
     }
 }
