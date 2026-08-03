@@ -932,7 +932,13 @@ function AppProvider({ children }) {
       const role = (field(u, "role") || "").toString().toUpperCase();
       const roleLabel = role === "PRESTATAIRE" ? "Professionnel" : role === "ADMIN" ? "Admin" : "Client";
       const disponible = field(u, "disponible");
-      const status = role === "PRESTATAIRE" ? (disponible ? "Actif" : "En pause") : "Actif";
+      // `statutCompte` (ACTIF/SUSPENDU) reflète une décision de modération de
+      // l'admin — distinct de `disponible`, que le prestataire pilote
+      // lui-même pour signaler s'il prend de nouvelles missions. Un compte
+      // suspendu prime toujours sur l'affichage "Actif / En pause".
+      const statutCompte = (field(u, "statutCompte") || "ACTIF").toString().toUpperCase();
+      const suspendu = role === "PRESTATAIRE" && statutCompte === "SUSPENDU";
+      const status = suspendu ? "Suspendu" : role === "PRESTATAIRE" ? (disponible ? "Actif" : "En pause") : "Actif";
       const nom = field(u, "nom", "name") || "Utilisateur";
       const initials = nom.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
       return {
@@ -941,6 +947,9 @@ function AppProvider({ children }) {
         email: field(u, "email") || "",
         telephone: field(u, "téléphone", "telephone") || "",
         role: roleLabel,
+        isPrestataire: role === "PRESTATAIRE",
+        statutCompte,
+        suspendu,
         status,
         dateInscription: field(u, "dateInscription") || "",
         moyenneNotes: field(u, "moyenneNotes"),
@@ -957,6 +966,22 @@ function AppProvider({ children }) {
     })
   ), [adminUsersQuery.data]);
 
+  // ---- Admin : valider (réactiver) ou suspendre un compte prestataire ----
+  const statutPrestataireMutation = useMutation({
+    mutationFn: ({ id, statut }) => adminApi.updateStatutPrestataire(id, statut),
+    onSuccess: () => adminUsersQuery.refetch(),
+  });
+
+  function suspendrePrestataire(id, nom) {
+    const ok = window.confirm(`Suspendre le compte de ${nom || "ce prestataire"} ? Il n'apparaîtra plus dans la recherche publique.`);
+    if (!ok) return;
+    statutPrestataireMutation.mutate({ id, statut: "SUSPENDU" });
+  }
+
+  function validerPrestataire(id) {
+    statutPrestataireMutation.mutate({ id, statut: "ACTIF" });
+  }
+
   const litigesOuvertsQuery = useQuery({
     queryKey: ["reservations", "litiges", "ouverts"],
     queryFn: reservationsApi.getLitigesOuverts,
@@ -966,32 +991,55 @@ function AppProvider({ children }) {
     enabled: adminEnabled,
   });
 
-  const litigesOuverts = React.useMemo(() => {
-    return toArray(litigesOuvertsQuery.data).map((l, i) => {
-      const reservation = field(l, "réservation", "reservation") || {};
-      const client = field(reservation, "client") || field(l, "client") || {};
-      const prestataire = field(reservation, "prestataire") || field(l, "prestataire") || {};
-      return {
-        litigeId: field(l, "identifiant", "id", "litigeId"),
-        reservationId: field(reservation, "identifiant", "id") || field(l, "reservationId"),
-        motif: field(l, "motif") || "",
-        clientNom: field(client, "nom", "name") || "Client",
-        proNom: field(prestataire, "nom", "name") || "Prestataire",
-        statut: field(l, "statut") || "OUVERT",
-        key: field(l, "identifiant", "id", "litigeId") ?? i,
-      };
-    });
-  }, [litigesOuvertsQuery.data]);
+  function mapLitige(l, i) {
+    const reservation = field(l, "réservation", "reservation") || {};
+    const client = field(reservation, "client") || field(l, "client") || {};
+    const prestataire = field(reservation, "prestataire") || field(l, "prestataire") || {};
+    return {
+      litigeId: field(l, "identifiant", "id", "litigeId"),
+      reservationId: field(reservation, "identifiant", "id") || field(l, "reservationId"),
+      motif: field(l, "motif") || "",
+      resolution: field(l, "resolution") || "",
+      clientNom: field(client, "nom", "name") || "Client",
+      proNom: field(prestataire, "nom", "name") || "Prestataire",
+      statut: field(l, "statut") || "OUVERT",
+      key: field(l, "identifiant", "id", "litigeId") ?? i,
+    };
+  }
+
+  const litigesOuverts = React.useMemo(() => (
+    toArray(litigesOuvertsQuery.data).map(mapLitige)
+  ), [litigesOuvertsQuery.data]);
+
+  // Historique complet des litiges (tous statuts) — alimente l'onglet "Tous"
+  // de l'espace admin, en plus de la vue "Ouverts" par défaut ci-dessus.
+  const tousLitigesQuery = useQuery({
+    queryKey: ["reservations", "litiges", "tous"],
+    queryFn: reservationsApi.getTousLitiges,
+    enabled: adminEnabled,
+  });
+  const tousLitiges = React.useMemo(() => (
+    toArray(tousLitigesQuery.data).map(mapLitige)
+  ), [tousLitigesQuery.data]);
 
   const resoudreLitigeMutation = useMutation({
-    mutationFn: ({ litigeId, resolution }) => reservationsApi.resoudreLitige(litigeId, resolution),
-    onSuccess: () => litigesOuvertsQuery.refetch(),
+    mutationFn: ({ litigeId, resolution, statut }) => reservationsApi.resoudreLitige(litigeId, resolution, statut),
+    onSuccess: () => {
+      litigesOuvertsQuery.refetch();
+      tousLitigesQuery.refetch();
+    },
   });
 
   function resoudreLitige(litigeId) {
     const resolution = window.prompt("Décision / résolution du litige :", "");
     if (resolution === null) return;
-    resoudreLitigeMutation.mutate({ litigeId, resolution });
+    resoudreLitigeMutation.mutate({ litigeId, resolution, statut: "RESOLU" });
+  }
+
+  function rejeterLitige(litigeId) {
+    const resolution = window.prompt("Motif du rejet du litige :", "");
+    if (resolution === null) return;
+    resoudreLitigeMutation.mutate({ litigeId, resolution, statut: "REJETE" });
   }
 
   const prosFiltered = React.useMemo(() => {
@@ -1231,11 +1279,18 @@ function AppProvider({ children }) {
     litigesOuvertsLoading: litigesOuvertsQuery.isLoading,
     litigesOuvertsError: litigesOuvertsQuery.isError,
     resoudreLitige,
+    rejeterLitige,
+    tousLitiges,
+    tousLitigesLoading: tousLitigesQuery.isLoading,
+    tousLitigesError: tousLitigesQuery.isError,
     adminKpis,
     adminKpisLoading: adminKpisQuery.isLoading,
     adminRevenusMensuels,
     adminTopCategories,
     adminUsersLoading: adminUsersQuery.isLoading,
+    validerPrestataire,
+    suspendrePrestataire,
+    statutPrestataireMutation,
     screen,
     ...isFlags,
     catFilter,

@@ -2,6 +2,7 @@ import React from "react";
 import { useApp } from "../AppContext.jsx";
 import { useAuth } from "../AuthContext.jsx";
 import { navigateTo } from "../router.jsx";
+import kolaborLogoWhite from "../assets/kolabor-logo-white.svg";
 
 function formatNombre(n) {
   return Number(n || 0).toLocaleString("fr-FR");
@@ -9,6 +10,7 @@ function formatNombre(n) {
 
 function Admin() {
   const [section, setSection] = React.useState("dashboard");
+  const [litigesFilter, setLitigesFilter] = React.useState("ouverts");
   const { logout } = useAuth();
   const {
     me,
@@ -22,7 +24,33 @@ function Admin() {
     litigesOuvertsLoading,
     litigesOuvertsError,
     resoudreLitige,
+    rejeterLitige,
+    tousLitiges,
+    tousLitigesLoading,
+    tousLitigesError,
+    validerPrestataire,
+    suspendrePrestataire,
   } = useApp();
+
+  const litigesAffiches = litigesFilter === "tous" ? tousLitiges : litigesOuverts;
+  const litigesAffichesLoading = litigesFilter === "tous" ? tousLitigesLoading : litigesOuvertsLoading;
+  const litigesAffichesError = litigesFilter === "tous" ? tousLitigesError : litigesOuvertsError;
+
+  const litigeStatutStyle = {
+    OUVERT: { background: "#FEF3C7", color: "#B45309" },
+    RESOLU: { background: "#D8F3E4", color: "#0B5C36" },
+    REJETE: { background: "#FEE2E2", color: "#B91C1C" },
+  };
+  const actionBtn = {
+    padding: "6px 12px",
+    borderRadius: 8,
+    border: "1px solid #E5E7EB",
+    background: "#fff",
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
 
   function handleLogout() {
     logout();
@@ -46,16 +74,9 @@ function Admin() {
   <div className="k664">
     <aside className="k665">
       <div className="k666">
-        <span className="k667">
-          K
-        </span>
-        <div>
-          <div className="k668">
-            Kolabor
-          </div>
-          <div className="k669">
-            ADMIN
-          </div>
+        <img src={kolaborLogoWhite} alt="Kolabor" style={{height: 28, width: "auto"}} />
+        <div className="k669">
+          ADMIN
         </div>
       </div>
       <div className="k429">
@@ -85,7 +106,7 @@ function Admin() {
       <div className="k190">
         <div>
           <h1 className="k493">
-            {section === "dashboard" ? "Tableau de bord" : section === "users" ? "Utilisateurs" : "Litiges ouverts"}
+            {section === "dashboard" ? "Tableau de bord" : section === "users" ? "Utilisateurs" : "Litiges"}
           </h1>
           <p className="k494">
             Vue d'ensemble de la plateforme Kolabor.
@@ -276,7 +297,7 @@ function Admin() {
 
       {section === "users" ? (
 <div className="k699">
-        <div className="k703">
+        <div className="k703" style={{gridTemplateColumns: "1.8fr 1.6fr 0.9fr 0.9fr 1fr 150px"}}>
           <span>
             Nom
           </span>
@@ -289,8 +310,11 @@ function Admin() {
           <span>
             Statut
           </span>
-          <span className="k28">
+          <span>
             Inscrit le
+          </span>
+          <span className="k28">
+            Actions
           </span>
         </div>
         {adminUsersLoading ? (
@@ -298,7 +322,7 @@ function Admin() {
 ) : adminUsers.length === 0 ? (
 <p style={{color: "#6B7280", padding: "16px 24px"}}>Aucun utilisateur pour le moment.</p>
 ) : adminUsers.map((u) => (
-<div key={u.id} className="k704">
+<div key={u.id} className="k704" style={{gridTemplateColumns: "1.8fr 1.6fr 0.9fr 0.9fr 1fr 150px"}}>
   <span className="k709" style={{display: "flex", alignItems: "center", gap: 8}}>
     <span style={{width: 28, height: 28, borderRadius: "50%", background: u.color, color: "#fff", fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0}}>
       {u.initials}
@@ -312,21 +336,51 @@ function Admin() {
     {u.role}
   </span>
   <span>
-    <span className={u.status === "Actif" ? "k756" : "k762"}>
+    <span className={u.status === "Actif" ? "k756" : "k762"} style={u.suspendu ? {background: "#FEE2E2", color: "#B91C1C"} : undefined}>
       {u.status}
     </span>
   </span>
   <span className="k709">
     {u.dateInscription ? new Date(u.dateInscription).toLocaleDateString("fr-FR") : "—"}
   </span>
+  <div className="k710">
+    {u.isPrestataire ? (
+      u.suspendu ? (
+<button style={{...actionBtn, borderColor: "#139356", color: "#139356"}} onClick={() => validerPrestataire(u.id)}>
+          Réactiver
+        </button>
+) : (
+<button style={{...actionBtn, borderColor: "#FCA5A5", color: "#B91C1C"}} onClick={() => suspendrePrestataire(u.id, u.name)}>
+          Suspendre
+        </button>
+)
+    ) : (
+<span style={{color: "#D1D5DB", fontSize: 12.5}}>—</span>
+)}
+  </div>
 </div>
 ))}
       </div>
 ) : null}
 
       {section === "litiges" ? (
+<React.Fragment>
+      <div className="k757" style={{marginBottom: 16}}>
+<button
+          style={litigesFilter === "ouverts" ? {...actionBtn, background: "#0F274A", color: "#fff", borderColor: "#0F274A"} : actionBtn}
+          onClick={() => setLitigesFilter("ouverts")}
+        >
+          Ouverts
+        </button>
+<button
+          style={litigesFilter === "tous" ? {...actionBtn, background: "#0F274A", color: "#fff", borderColor: "#0F274A"} : actionBtn}
+          onClick={() => setLitigesFilter("tous")}
+        >
+          Tous
+        </button>
+      </div>
 <div className="k699">
-        <div className="k703">
+        <div className="k703" style={{gridTemplateColumns: "1fr 1fr 1fr 1.4fr 120px 150px"}}>
           <span>
             Reservation
           </span>
@@ -339,18 +393,21 @@ function Admin() {
           <span>
             Motif
           </span>
+          <span>
+            Statut
+          </span>
           <span className="k28">
             Actions
           </span>
         </div>
-        {litigesOuvertsLoading ? (
+        {litigesAffichesLoading ? (
 <p style={{color: "#6B7280", padding: "16px 24px"}}>Chargement...</p>
-) : litigesOuvertsError ? (
+) : litigesAffichesError ? (
 <p style={{color: "#B91C1C", padding: "16px 24px"}}>Impossible de charger les litiges depuis le serveur.</p>
-) : litigesOuverts.length === 0 ? (
-<p style={{color: "#6B7280", padding: "16px 24px"}}>Aucun litige ouvert.</p>
-) : litigesOuverts.map((l) => (
-<div key={l.key} className="k704">
+) : litigesAffiches.length === 0 ? (
+<p style={{color: "#6B7280", padding: "16px 24px"}}>{litigesFilter === "tous" ? "Aucun litige pour le moment." : "Aucun litige ouvert."}</p>
+) : litigesAffiches.map((l) => (
+<div key={l.key} className="k704" style={{gridTemplateColumns: "1fr 1fr 1fr 1.4fr 120px 150px"}}>
   <span className="k709">
     #{l.reservationId}
   </span>
@@ -362,15 +419,33 @@ function Admin() {
   </span>
   <span className="k709">
     {l.motif}
+    {l.statut !== "OUVERT" && l.resolution ? (
+<span style={{display: "block", color: "#9CA3AF", fontSize: 12}}>→ {l.resolution}</span>
+) : null}
+  </span>
+  <span>
+    <span className="k756" style={litigeStatutStyle[l.statut] || litigeStatutStyle.OUVERT}>
+      {l.statut === "RESOLU" ? "Résolu" : l.statut === "REJETE" ? "Rejeté" : "Ouvert"}
+    </span>
   </span>
   <div className="k710">
-    <button className="k711" onClick={() => resoudreLitige(l.litigeId)}>
-      Resoudre
-    </button>
+    {l.statut === "OUVERT" ? (
+<React.Fragment>
+<button style={{...actionBtn, borderColor: "#139356", color: "#139356"}} onClick={() => resoudreLitige(l.litigeId)}>
+        Résoudre
+      </button>
+<button style={{...actionBtn, borderColor: "#FCA5A5", color: "#B91C1C"}} onClick={() => rejeterLitige(l.litigeId)}>
+        Rejeter
+      </button>
+</React.Fragment>
+) : (
+<span style={{color: "#D1D5DB", fontSize: 12.5}}>—</span>
+)}
   </div>
 </div>
 ))}
       </div>
+</React.Fragment>
 ) : null}
     </div>
   </div>
