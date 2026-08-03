@@ -5,9 +5,13 @@ import com.capstone.serviceplatform.entity.Reservation;
 import com.capstone.serviceplatform.entity.Role;
 import com.capstone.serviceplatform.entity.User;
 import com.capstone.serviceplatform.repository.LitigeRepository;
+import com.capstone.serviceplatform.repository.PrestataireRepository;
 import com.capstone.serviceplatform.repository.ReservationRepository;
 import com.capstone.serviceplatform.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +19,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -47,6 +54,10 @@ public class AdminController {
     private ReservationRepository reservationRepository;
     @Autowired
     private LitigeRepository litigeRepository;
+    @Autowired
+    private PrestataireRepository prestataireRepository;
+
+    private static final List<String> STATUTS_COMPTE_VALIDES = Arrays.asList("ACTIF", "SUSPENDU");
 
     private static final List<String> STATUTS_PAYES = Arrays.asList("PAYEE", "EN_COURS", "TERMINEE");
     private static final String[] MOIS_ABBR = {
@@ -193,10 +204,52 @@ public class AdminController {
                 row.put("moyenneNotes", p.getMoyenneNotes());
                 row.put("competences", p.getCompetences());
                 row.put("nombreAvis", p.getNombreAvis());
+                row.put("statutCompte", p.getStatutCompte());
             }
             return row;
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
+    }
+
+    // Admin : valider (réactiver) ou suspendre un compte prestataire. Un
+    // compte SUSPENDU disparaît de la recherche publique (voir
+    // PrestataireController.rechercherPrestataires) et ne doit plus pouvoir
+    // recevoir de nouvelles réservations, sans que ses données soient
+    // supprimées.
+    @PutMapping("/prestataires/{id}/statut")
+    @Operation(summary = "Valider ou suspendre un compte prestataire (admin)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Statut du compte mis à jour"),
+            @ApiResponse(responseCode = "400", description = "Statut invalide (attendu ACTIF ou SUSPENDU)"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux administrateurs"),
+            @ApiResponse(responseCode = "404", description = "Prestataire non trouvé")
+    })
+    public ResponseEntity<?> updateStatutPrestataire(
+            @Parameter(description = "ID du prestataire") @PathVariable Long id,
+            @Parameter(description = "Nouveau statut : ACTIF ou SUSPENDU") @RequestParam String statut) {
+        ResponseEntity<?> err = adminCheck();
+        if (err != null) return err;
+
+        String statutNormalise = statut == null ? "" : statut.trim().toUpperCase();
+        if (!STATUTS_COMPTE_VALIDES.contains(statutNormalise)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Statut invalide : attendu ACTIF ou SUSPENDU"));
+        }
+
+        Prestataire prestataire = prestataireRepository.findById(id).orElse(null);
+        if (prestataire == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Prestataire non trouvé"));
+        }
+
+        prestataire.setStatutCompte(statutNormalise);
+        prestataireRepository.save(prestataire);
+
+        return ResponseEntity.ok(Map.of(
+                "id", prestataire.getId(),
+                "statutCompte", statutNormalise
+        ));
     }
 }

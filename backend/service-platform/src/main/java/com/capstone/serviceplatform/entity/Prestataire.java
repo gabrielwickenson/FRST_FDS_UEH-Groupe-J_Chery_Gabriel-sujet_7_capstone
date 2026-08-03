@@ -23,6 +23,12 @@ public class Prestataire extends User {
     @Formula("(SELECT COUNT(*) FROM avis a WHERE a.prestataire_id = id)")
     private int nombreAvis;
     private Boolean disponible = true;
+    // Statut du compte côté modération admin (ACTIF ou SUSPENDU), distinct de
+    // `disponible` (qui reflète si LE PRESTATAIRE se déclare lui-même
+    // disponible pour de nouvelles missions). Un compte SUSPENDU est masqué
+    // de la recherche publique et ne peut plus recevoir de réservations,
+    // indépendamment de sa disponibilité déclarée.
+    private String statutCompte = "ACTIF";
 
     // getters et setters
     public Boolean getDisponible() {
@@ -31,6 +37,14 @@ public class Prestataire extends User {
 
     public void setDisponible(Boolean disponible) {
         this.disponible = disponible;
+    }
+
+    public String getStatutCompte() {
+        return statutCompte;
+    }
+
+    public void setStatutCompte(String statutCompte) {
+        this.statutCompte = statutCompte;
     }
 
     public int getNombreAvis() {

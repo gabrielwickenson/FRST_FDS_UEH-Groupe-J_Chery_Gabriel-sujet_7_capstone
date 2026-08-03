@@ -619,6 +619,37 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(litige);
     }
 
+    // Admin : consulter l'historique complet des litiges (ouverts, résolus,
+    // rejetés), utilisé par l'onglet "Tous" de l'espace admin — distinct de
+    // /litiges/ouverts qui alimente le badge et la vue "Ouverts" par défaut.
+    @GetMapping("/litiges")
+    @Operation(summary = "Consulter tous les litiges, tous statuts confondus (admin)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Liste complète des litiges"),
+            @ApiResponse(responseCode = "401", description = "Non authentifié"),
+            @ApiResponse(responseCode = "403", description = "Accès réservé aux administrateurs")
+    })
+    public ResponseEntity<?> getTousLitiges() {
+
+        // 1. Récupérer l'utilisateur authentifié
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(email).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Utilisateur non authentifié"));
+        }
+
+        // 2. Vérifier que l'utilisateur est bien un ADMIN
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Accès réservé aux administrateurs"));
+        }
+
+        // 3. Récupérer et retourner l'ensemble des litiges
+        List<Litige> litiges = litigeRepository.findAllByOrderByIdDesc();
+        return ResponseEntity.ok(litiges);
+    }
+
     // Admin : consulter tous les litiges ouverts
     @GetMapping("/litiges/ouverts")
     @Operation(summary = "Consulter tous les litiges ouverts (admin)")
@@ -648,17 +679,19 @@ public class ReservationController {
         return ResponseEntity.ok(litiges);
     }
 
-    // Admin : résoudre un litige
+    // Admin : résoudre ou rejeter un litige
     @PutMapping("/litiges/{litigeId}")
-    @Operation(summary = "Résoudre un litige (admin)")
+    @Operation(summary = "Modifier le statut d'un litige : résolu ou rejeté (admin)")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Litige résolu"),
+            @ApiResponse(responseCode = "200", description = "Litige mis à jour"),
+            @ApiResponse(responseCode = "400", description = "Statut invalide ou litige déjà traité"),
             @ApiResponse(responseCode = "401", description = "Non authentifié"),
             @ApiResponse(responseCode = "403", description = "Accès réservé aux administrateurs"),
             @ApiResponse(responseCode = "404", description = "Litige non trouvé")
     })
     public ResponseEntity<?> resoudreLitige(@Parameter(description = "ID du litige") @PathVariable Long litigeId,
-                                            @Parameter(description = "Décision de résolution") @RequestParam String resolution) {
+                                            @Parameter(description = "Décision / motif") @RequestParam String resolution,
+                                            @Parameter(description = "Nouveau statut : RESOLU ou REJETE") @RequestParam(required = false, defaultValue = "RESOLU") String statut) {
 
         // 1. Récupérer l'utilisateur authentifié
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -674,21 +707,28 @@ public class ReservationController {
                     .body(Map.of("error", "Accès réservé aux administrateurs"));
         }
 
-        // 3. Récupérer le litige
+        // 3. Valider le nouveau statut demandé
+        String statutNormalise = statut == null ? "RESOLU" : statut.trim().toUpperCase();
+        if (!"RESOLU".equals(statutNormalise) && !"REJETE".equals(statutNormalise)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Statut invalide : attendu RESOLU ou REJETE"));
+        }
+
+        // 4. Récupérer le litige
         Litige litige = litigeRepository.findById(litigeId).orElse(null);
         if (litige == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Litige non trouvé"));
         }
 
-        // 4. Vérifier que le litige est encore ouvert (bonne pratique)
+        // 5. Vérifier que le litige est encore ouvert (bonne pratique)
         if (!"OUVERT".equals(litige.getStatut())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Seul un litige ouvert peut être résolu"));
+                    .body(Map.of("error", "Seul un litige ouvert peut être résolu ou rejeté"));
         }
 
-        // 5. Résoudre le litige
-        litige.setStatut("RESOLU");
+        // 6. Mettre à jour le litige
+        litige.setStatut(statutNormalise);
         litige.setResolution(resolution);
         litigeRepository.save(litige);
 

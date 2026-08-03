@@ -36,6 +36,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.math.BigDecimal;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/prestataires")
@@ -83,7 +84,13 @@ public class PrestataireController {
             @Parameter(description = "Note minimale (ex: 4)") @RequestParam(required = false) Double noteMin,
             @Parameter(description = "Zone d'intervention (ex: Pétion-Ville)") @RequestParam(required = false) String zone) {
 
-        List<Prestataire> resultats = prestataireRepository.rechercherParFiltres(service, noteMin, zone);
+        List<Prestataire> resultats = prestataireRepository.rechercherParFiltres(service, noteMin, zone).stream()
+                // Un compte suspendu par un administrateur (voir
+                // AdminController.updateStatutPrestataire) ne doit plus être
+                // découvrable ni réservable publiquement, même s'il continue
+                // de matcher les filtres de recherche.
+                .filter(p -> !"SUSPENDU".equals(p.getStatutCompte()))
+                .collect(Collectors.toList());
         // Masquer le mot de passe pour la réponse
         resultats.forEach(p -> p.setMotDePasse(null));
         return ResponseEntity.ok(resultats);

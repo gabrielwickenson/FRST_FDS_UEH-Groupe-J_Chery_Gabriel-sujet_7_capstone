@@ -7,4 +7,7 @@ import java.util.List;
 public interface LitigeRepository extends JpaRepository<Litige, Long> {
     boolean existsByReservationId(Long reservationId);
     List<Litige> findByStatut(String statut);
+    // Admin : historique complet (ouverts, résolus, rejetés), du plus récent
+    // au plus ancien.
+    List<Litige> findAllByOrderByIdDesc();
 }
