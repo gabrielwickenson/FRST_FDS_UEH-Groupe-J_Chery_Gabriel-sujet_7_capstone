@@ -19,3 +19,8 @@ export function getTopCategories() {
 export function getUsers() {
   return api.get("/admin/users").then((r) => r.data);
 }
+
+// PUT /api/admin/prestataires/{id}/statut?statut=ACTIF|SUSPENDU — Valider (réactiver) ou suspendre un compte prestataire
+export function updateStatutPrestataire(id, statut) {
+  return api.put(`/admin/prestataires/${id}/statut`, null, { params: { statut } }).then((r) => r.data);
+}

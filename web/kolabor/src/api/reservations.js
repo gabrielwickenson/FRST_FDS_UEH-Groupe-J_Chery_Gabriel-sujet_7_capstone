@@ -31,15 +31,21 @@ export function ouvrirLitige(id, motif, clientId) {
   return api.post(`/reservations/${id}/litige`, { motif }, { params: { clientId } }).then((r) => r.data);
 }
 
-// PUT /api/reservations/litiges/{litigeId}?resolution=... — Résoudre un litige (admin)
-// Le backend attend `resolution` en paramètre de requête ; il n'y a pas de corps JSON.
-export function resoudreLitige(litigeId, resolution) {
-  return api.put(`/reservations/litiges/${litigeId}`, null, { params: { resolution } }).then((r) => r.data);
+// PUT /api/reservations/litiges/{litigeId}?resolution=...&statut=RESOLU|REJETE — Résoudre ou rejeter un litige (admin)
+// Le backend attend `resolution` et `statut` en paramètres de requête ; il n'y a pas de corps JSON.
+// `statut` est optionnel côté backend (défaut RESOLU) mais on le passe toujours explicitement ici.
+export function resoudreLitige(litigeId, resolution, statut = "RESOLU") {
+  return api.put(`/reservations/litiges/${litigeId}`, null, { params: { resolution, statut } }).then((r) => r.data);
 }
 
 // GET /api/reservations/litiges/ouverts — Consulter tous les litiges ouverts (admin)
 export function getLitigesOuverts() {
   return api.get("/reservations/litiges/ouverts").then((r) => r.data);
+}
+
+// GET /api/reservations/litiges — Consulter l'historique complet des litiges, tous statuts (admin)
+export function getTousLitiges() {
+  return api.get("/reservations/litiges").then((r) => r.data);
 }
 
 // GET /api/reservations/{id}/avis — Récupérer tous les avis d'un prestataire
